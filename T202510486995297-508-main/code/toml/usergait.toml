@@ -1,0 +1,463 @@
+#共用0
+[[step]]
+mode = 12
+gait_id = 0 #0站立use(跌倒站起，步态转换)
+contact = 0
+life_count = 0 #Fake value
+vel_des = [ 0.0, 0.0, 0.0,]
+rpy_des = [ 0.0, 0.0, 0.0,]
+pos_des = [ 0.0, 0.0, 0.0,]
+acc_des = [ 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,]
+ctrl_point = [ 0.0, 0.0, 0.0,]
+foot_pose = [ 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,]
+step_height = [ 0.0, 0.0,]
+value = 0
+duration = 5000   
+
+#1
+[[step]]
+mode = 11   
+gait_id = 27
+contact = 15
+life_count = 0 #Fake value
+vel_des = [ 0.2, 0.0, 0.0,]     #前进use（前进）
+rpy_des = [ 0.0, 0.0, 0.0,]     #俯仰角度，横滚角度，扭动角度
+pos_des = [ 0.0, 0.0, 0.20,]
+acc_des = [ 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,]
+ctrl_point = [ 0.0, 0.0, 0.0,]
+foot_pose = [ 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,]
+step_height = [ 0.02, 0.02,]
+value = 0
+duration = 0   
+
+#2
+[[step]]
+mode = 11   #动作类
+gait_id = 27
+contact = 15
+life_count = 0 #Fake value
+vel_des = [ 0.0, 0.0, 0.25,]     #左转use
+rpy_des = [ 0.0, 0.0, 0.0,]     #俯仰角度，横滚角度，扭动角度
+pos_des = [ 0.0, 0.0, 0.0,]
+acc_des = [ 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,]
+ctrl_point = [ 0.0, 0.0, 0.0,]
+foot_pose = [ 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,]
+step_height = [ 0.12, 0.12,]
+value = 0
+duration = 0   
+
+#3
+[[step]]
+mode = 11   #动作类
+gait_id = 27
+contact = 15
+life_count = 0 #Fake value
+vel_des = [ 0.0, 0.0, -0.25,]     #右转use
+rpy_des = [ 0.0, 0.0, 0.0,]     #俯仰角度，横滚角度，扭动角度
+pos_des = [ 0.0, 0.0, 0.0,]
+acc_des = [ 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,]
+ctrl_point = [ 0.0, 0.0, 0.0,]
+foot_pose = [ 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,]
+step_height = [ 0.12, 0.12,]
+value = 0
+duration = 0   
+
+#4
+[[step]]
+mode = 7  # 高阻尼趴下use
+gait_id = 0
+contact = 0
+life_count = 0
+vel_des = [ 0.0, 0.0, 0.0,]
+rpy_des = [ 0.0, 0.0, 0.0,]
+pos_des = [ 0.0, 0.0, 0.0,]
+acc_des = [ 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,]
+ctrl_point = [ 0.0, 0.0, 0.0,]
+foot_pose = [ 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,]
+step_height = [ 0.0, 0.0,]
+value = 0
+duration = 4000
+
+#5
+[[step]]
+mode = 62    # 低姿态高抬腿走use
+gait_id = 110
+contact = 15
+life_count = 0
+vel_des = [ 0.0, 0.0, 0.0,] # velocity of x y yaw
+rpy_des = [ 0.0, 0.0, 0.0,]
+pos_des = [ 0.0, 0.0, 0.0,]
+acc_des = [ 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,]
+ctrl_point = [ 0.0, 0.0, 0.0,]
+foot_pose = [ 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,]
+step_height = [ 0.0, 0.0,]
+value = 0
+duration = 0
+
+#6
+[[step]]
+mode = 11   #动作类
+gait_id = 27
+contact = 15
+life_count = 0 #Fake value
+vel_des = [ -0.1, 0.0, 0.0,]     # 倒退
+rpy_des = [ 0.0, 0.0, 0.0,]     #俯仰角度，横滚角度，扭动角度
+pos_des = [ 0.0, 0.0, 0.20,]
+acc_des = [ 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,]
+ctrl_point = [ 0.0, 0.0, 0.0,]
+foot_pose = [ 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,]
+step_height = [ 0.02, 0.02, ]
+value = 0
+duration = 0   
+
+#7
+[[step]]
+mode = 11   #动作类
+gait_id = 27
+contact = 15
+life_count = 0 #Fake value
+vel_des = [ 0.0, 0.05, 0.0,]     #左移use
+rpy_des = [ 0.0, 0.0, 0.0,]     #俯仰角度，横滚角度，扭动角度
+pos_des = [ 0.0, 0.0, 0.0,]
+acc_des = [ 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,]
+ctrl_point = [ 0.0, 0.0, 0.0,]
+foot_pose = [ 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,]
+step_height = [ 0.03, 0.03,]
+value = 0
+duration = 0  
+
+#8
+[[step]]
+mode = 11   #动作类
+gait_id = 27
+contact = 15
+life_count = 0 #Fake value
+vel_des = [ 0.0, -0.05, 0.0,]     #右移use
+rpy_des = [ 0.0, 0.0, 0.0,]     #俯仰角度，横滚角度，扭动角度
+pos_des = [ 0.0, 0.0, 0.0,]
+acc_des = [ 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,]
+ctrl_point = [ 0.0, 0.0, 0.0,]
+foot_pose = [ 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,]
+step_height = [ 0.03, 0.03,]
+value = 0
+duration = 0   
+
+#9
+[[step]]
+mode = 11   #动作类
+gait_id = 27
+contact = 15
+life_count = 0 #Fake value
+vel_des = [ 0.15, 0.0, 0.0,]     #8中高抬腿前进use（石板路）
+rpy_des = [ 0.0, 0.0, 0.0,]     #俯仰角度，横滚角度，扭动角度
+pos_des = [ 0.0, 0.0, 0.0,]
+acc_des = [ 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,]
+ctrl_point = [ 0.0, 0.0, 0.0,]
+foot_pose = [ 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,]
+step_height = [ 0.12, 0.12,]
+value = 0
+duration = 0   
+
+#10
+[[step]]
+mode = 11   #动作类
+gait_id = 27
+contact = 15
+life_count = 0 #Fake value
+vel_des = [ 0.25, 0.0, 0.0,]     #前进 use 斜坡
+rpy_des = [ 0.0, 0.0, 0.0,]     #俯仰角度，横滚角度，扭动角度
+pos_des = [ 0.0, 0.0, 0.0,]
+acc_des = [ 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,]
+ctrl_point = [ 0.0, 0.0, 0.0,]
+foot_pose = [ 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,]
+step_height = [ 0.03, 0.03, ]
+value = 0
+duration = 0   
+
+#11
+[[step]]
+mode = 11   #动作类
+gait_id = 27
+contact = 15
+life_count = 0 #Fake value
+vel_des = [ 0.15, 0.0, 0.25,]     #A区配货完成左转弯use
+rpy_des = [ 0.0, 0.0, 0.0,]     #俯仰角度，横滚角度，扭动角度
+pos_des = [ 0.0, 0.0, 0.0,]
+acc_des = [ 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,]
+ctrl_point = [ 0.0, 0.0, 0.0,]
+foot_pose = [ 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,]
+step_height = [ 0.03, 0.03,]
+value = 0
+duration = 0   
+
+#12
+[[step]]
+mode = 11   #动作类
+gait_id = 27
+contact = 15
+life_count = 0 #Fake value
+vel_des = [ 0.05, 0.0, -0.5,]     #进入A区右转弯use
+rpy_des = [ 0.0, 0.0, 0.0,]     #俯仰角度，横滚角度，扭动角度
+pos_des = [ 0.0, 0.0, 0.0,]
+acc_des = [ 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,]
+ctrl_point = [ 0.0, 0.0, 0.0,]
+foot_pose = [ 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,]
+step_height = [ 0.03, 0.03,]
+value = 0
+duration = 0
+
+#13
+[[step]]
+mode = 11   #动作类
+gait_id = 27
+contact = 15
+life_count = 0 #Fake value
+vel_des = [ 0.15, 0.0, -0.4,]     #A配货右转弯use
+rpy_des = [ 0.0, 0.0, 0.0,]     #俯仰角度，横滚角度，扭动角度
+pos_des = [ 0.0, 0.0, 0.0,]
+acc_des = [ 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,]
+ctrl_point = [ 0.0, 0.0, 0.0,]
+foot_pose = [ 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,]
+step_height = [ 0.03, 0.03,]
+value = 0
+duration = 0
+
+#14
+[[step]]
+mode = 11   #动作类
+gait_id = 27
+contact = 15
+life_count = 0 #Fake value
+vel_des = [ 0.0, 0.0, 0.6,]     #快左转use
+rpy_des = [ 0.0, 0.0, 0.0,]     #俯仰角度，横滚角度，扭动角度
+pos_des = [ 0.0, 0.0, 0.0,]
+acc_des = [ 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,]
+ctrl_point = [ 0.0, 0.0, 0.0,]
+foot_pose = [ 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,]
+step_height = [ 0.12, 0.12,]
+value = 0
+duration = 0   
+
+#15
+[[step]]
+mode = 11   #动作类
+gait_id = 27
+contact = 15
+life_count = 0 #Fake value
+vel_des = [ 0.0, 0.0, -0.6,]     #快右转use
+rpy_des = [ 0.0, 0.0, 0.0,]     #俯仰角度，横滚角度，扭动角度
+pos_des = [ 0.0, 0.0, 0.0,]
+acc_des = [ 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,]
+ctrl_point = [ 0.0, 0.0, 0.0,]
+foot_pose = [ 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,]
+step_height = [ 0.12, 0.12,]
+value = 0
+duration = 0  
+
+#16
+[[step]]
+mode = 11   #动作类
+gait_id = 27
+contact = 15
+life_count = 0 #Fake value
+vel_des = [ 0.05, 0.0, 0.5,]     #进入A区左转弯use
+rpy_des = [ 0.0, 0.0, 0.0,]     #俯仰角度，横滚角度，扭动角度
+pos_des = [ 0.0, 0.0, 0.0,]
+acc_des = [ 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,]
+ctrl_point = [ 0.0, 0.0, 0.0,]
+foot_pose = [ 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,]
+step_height = [ 0.03, 0.03,]
+value = 0
+duration = 0
+
+#17
+[[step]]
+mode = 11   #动作类
+gait_id = 27
+contact = 15
+life_count = 0 #Fake value
+vel_des = [ 0.15, 0.0, 0.4,]     #A卸货左转弯use
+rpy_des = [ 0.0, 0.0, 0.0,]     #俯仰角度，横滚角度，扭动角度
+pos_des = [ 0.0, 0.0, 0.0,]
+acc_des = [ 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,]
+ctrl_point = [ 0.0, 0.0, 0.0,]
+foot_pose = [ 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,]
+step_height = [ 0.03, 0.03,]
+value = 0
+duration = 0
+
+#18
+[[step]]
+mode = 11   #动作类
+gait_id = 27
+contact = 15
+life_count = 0 #Fake value
+vel_des = [ 0.15, 0.0, -0.25,]     #A区卸货完成右转弯use
+rpy_des = [ 0.0, 0.0, 0.0,]     #俯仰角度，横滚角度，扭动角度
+pos_des = [ 0.0, 0.0, 0.0,]
+acc_des = [ 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,]
+ctrl_point = [ 0.0, 0.0, 0.0,]
+foot_pose = [ 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,]
+step_height = [ 0.03, 0.03,]
+value = 0
+duration = 0   
+
+#19
+[[step]]
+mode = 11   #动作类
+gait_id = 27
+contact = 15
+life_count = 0 #Fake value
+vel_des = [ 0.15, 0.0, 0.4,]     #结束左转弯use
+rpy_des = [ 0.0, 0.0, 0.0,]     #俯仰角度，横滚角度，扭动角度
+pos_des = [ 0.0, 0.0, 0.0,]
+acc_des = [ 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,]
+ctrl_point = [ 0.0, 0.0, 0.0,]
+foot_pose = [ 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,]
+step_height = [ 0.03, 0.03,]
+value = 0
+duration = 0
+
+#20
+[[step]]
+mode = 11   #动作类4
+gait_id = 27
+contact = 15
+life_count = 0 #Fake value
+vel_des = [ 0.15, 0.0, 0.33,]     #11左转弯use
+rpy_des = [ 0.0, 0.0, 0.0,]     #俯仰角度，横滚角度，扭动角度
+pos_des = [ 0.0, 0.0, 0.0,]
+acc_des = [ 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,]
+ctrl_point = [ 0.0, 0.0, 0.0,]
+foot_pose = [ 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,]
+step_height = [ 0.03, 0.03,]
+value = 0
+duration = 0   
+
+#21
+[[step]]
+mode = 11   #动作类5
+gait_id = 27
+contact = 15
+life_count = 0 #Fake value
+vel_des = [ 0.15, 0.0, 0.21,]     #16右转弯use
+rpy_des = [ 0.0, 0.0, 0.0,]     #俯仰角度，横滚角度，扭动角度
+pos_des = [ 0.0, 0.0, 0.0,]
+acc_des = [ 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,]
+ctrl_point = [ 0.0, 0.0, 0.0,]
+foot_pose = [ 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,]
+step_height = [ 0.03, 0.03,]
+value = 0
+duration = 0
+
+#22
+[[step]]
+mode = 11   #动作类4
+gait_id = 27
+contact = 15
+life_count = 0 #Fake value
+vel_des = [ 0.15, 0.0, -0.33,]     #11右转急弯use
+rpy_des = [ 0.0, 0.0, 0.0,]     #俯仰角度，横滚角度，扭动角度
+pos_des = [ 0.0, 0.0, 0.0,]
+acc_des = [ 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,]
+ctrl_point = [ 0.0, 0.0, 0.0,]
+foot_pose = [ 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,]
+step_height = [ 0.03, 0.03,]
+value = 0
+duration = 0   
+
+#23
+[[step]]
+mode = 11   #动作类5
+gait_id = 27
+contact = 15
+life_count = 0 #Fake value
+vel_des = [ 0.15, 0.0, -0.21,]     #16右转缓弯use
+rpy_des = [ 0.0, 0.0, 0.0,]     #俯仰角度，横滚角度，扭动角度
+pos_des = [ 0.0, 0.0, 0.0,]
+acc_des = [ 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,]
+ctrl_point = [ 0.0, 0.0, 0.0,]
+foot_pose = [ 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,]
+step_height = [ 0.03, 0.03,]
+value = 0
+duration = 0
+
+#24
+[[step]]
+mode = 11   #动作类5
+gait_id = 27
+contact = 15
+life_count = 0 #Fake value
+vel_des = [ 0.15, 0.0, -0.27,]     #右转弯use
+rpy_des = [ 0.0, 0.0, 0.0,]     #俯仰角度，横滚角度，扭动角度
+pos_des = [ 0.0, 0.0, 0.0,]
+acc_des = [ 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,]
+ctrl_point = [ 0.0, 0.0, 0.0,]
+foot_pose = [ 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,]
+step_height = [ 0.03, 0.03,]
+value = 0
+duration = 0
+
+#25
+[[step]]
+mode = 11   #动作类4
+gait_id = 27
+contact = 15
+life_count = 0 #Fake value
+vel_des = [ 0.15, 0.0, 0.27,]     #11左转弯use
+rpy_des = [ 0.0, 0.0, 0.0,]     #俯仰角度，横滚角度，扭动角度
+pos_des = [ 0.0, 0.0, 0.0,]
+acc_des = [ 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,]
+ctrl_point = [ 0.0, 0.0, 0.0,]
+foot_pose = [ 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,]
+step_height = [ 0.03, 0.03,]
+value = 0
+duration = 0  
+
+#26
+[[step]]
+mode = 11   #动作类
+gait_id = 27
+contact = 15
+life_count = 0 #Fake value
+vel_des = [ -0.2, 0.0, 0.0,]     # 快倒退
+rpy_des = [ 0.0, 0.0, 0.0,]     #俯仰角度，横滚角度，扭动角度
+pos_des = [ 0.0, 0.0, 0.20,]
+acc_des = [ 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,]
+ctrl_point = [ 0.0, 0.0, 0.0,]
+foot_pose = [ 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,]
+step_height = [ 0.02, 0.02, ]
+value = 0
+duration = 0   
+
+#27
+[[step]]
+mode = 11   #动作类
+gait_id = 27
+contact = 15
+life_count = 0 #Fake value
+vel_des = [ 0.15, 0.0, -0.45,]     #A区卸货完成右转弯use
+rpy_des = [ 0.0, 0.0, 0.0,]     #俯仰角度，横滚角度，扭动角度
+pos_des = [ 0.0, 0.0, 0.0,]
+acc_des = [ 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,]
+ctrl_point = [ 0.0, 0.0, 0.0,]
+foot_pose = [ 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,]
+step_height = [ 0.03, 0.03,]
+value = 0
+duration = 0  
+
+#28
+[[step]]
+mode = 11   
+gait_id = 27
+contact = 15
+life_count = 0 #Fake value
+vel_des = [ 0.3, 0.0, 0.0,]     #前进use（前进）
+rpy_des = [ 0.0, 0.0, 0.0,]     #俯仰角度，横滚角度，扭动角度
+pos_des = [ 0.0, 0.0, 0.20,]
+acc_des = [ 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,]
+ctrl_point = [ 0.0, 0.0, 0.0,]
+foot_pose = [ 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,]
+step_height = [ 0.02, 0.02,]
+value = 0
+duration = 0  

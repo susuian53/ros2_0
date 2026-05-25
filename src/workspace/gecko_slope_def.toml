@@ -1,0 +1,114 @@
+# GeckoCrawl Slope Gait Definition — 壁虎斜坡爬行接触序列
+#
+# 设计原则:
+#   - 始终至少 3 条腿支撑 (contact sum >= 3)
+#   - 单腿依次抬起 (wave gait: LF→RF→LR→RR)
+#   - 每次抬腿间插入全支撑稳定期
+#   - 低步频: 每段时间更长, 减小动态冲击
+#
+# contact = [LF, RF, LR, RR]  (1=着地, 0=抬起)
+# duration: 每段持续的节拍数 (值越大→步频越低)
+
+# ── 第1周期: 左前腿 (LF) ──
+[[section]]
+contact  = [1, 1, 1, 1]    # 四腿全支撑 (预备)
+duration = 5
+
+[[section]]
+contact  = [0, 1, 1, 1]    # 抬 LF, 其余三点支撑
+duration = 8
+
+[[section]]
+contact  = [1, 1, 1, 1]    # LF 着地, 四腿全支撑 (稳定)
+duration = 5
+
+# ── 第2周期: 右前腿 (RF) ──
+[[section]]
+contact  = [1, 1, 1, 1]
+duration = 5
+
+[[section]]
+contact  = [1, 0, 1, 1]    # 抬 RF, 其余三点支撑
+duration = 8
+
+[[section]]
+contact  = [1, 1, 1, 1]
+duration = 5
+
+# ── 第3周期: 左后腿 (LR) ──
+[[section]]
+contact  = [1, 1, 1, 1]
+duration = 5
+
+[[section]]
+contact  = [1, 1, 0, 1]    # 抬 LR, 其余三点支撑
+duration = 8
+
+[[section]]
+contact  = [1, 1, 1, 1]
+duration = 5
+
+# ── 第4周期: 右后腿 (RR) ──
+[[section]]
+contact  = [1, 1, 1, 1]
+duration = 5
+
+[[section]]
+contact  = [1, 1, 1, 0]    # 抬 RR, 其余三点支撑
+duration = 8
+
+[[section]]
+contact  = [1, 1, 1, 1]
+duration = 5
+
+# ── 重复第1周期 ──
+[[section]]
+contact  = [1, 1, 1, 1]
+duration = 5
+
+[[section]]
+contact  = [0, 1, 1, 1]
+duration = 8
+
+[[section]]
+contact  = [1, 1, 1, 1]
+duration = 5
+
+# ── 重复第2周期 ──
+[[section]]
+contact  = [1, 1, 1, 1]
+duration = 5
+
+[[section]]
+contact  = [1, 0, 1, 1]
+duration = 8
+
+[[section]]
+contact  = [1, 1, 1, 1]
+duration = 5
+
+# ── 重复第3周期 ──
+[[section]]
+contact  = [1, 1, 1, 1]
+duration = 5
+
+[[section]]
+contact  = [1, 1, 0, 1]
+duration = 8
+
+[[section]]
+contact  = [1, 1, 1, 1]
+duration = 5
+
+# ── 重复第4周期 ──
+[[section]]
+contact  = [1, 1, 1, 1]
+duration = 5
+
+[[section]]
+contact  = [1, 1, 1, 0]
+duration = 8
+
+[[section]]
+contact  = [1, 1, 1, 1]
+duration = 5

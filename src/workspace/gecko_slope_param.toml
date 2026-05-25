@@ -1,0 +1,239 @@
+# GeckoCrawl Slope Gait Parameters — 壁虎斜坡爬行参数
+#
+# 核心调整 (vs 默认 usergait_param_full.toml):
+#   - ctrl_point[2] = 0.02 (极小→Z字形下扎式触地, 默认 0.4)
+#   - ctrl_point[0] = 0.04 (正向→足端后蹬分量)
+#   - pos_des[2]  = -0.08 (超低重心, 默认 -0.05)
+#   - step_height = 0.14 (高抬腿, 避免拖地)
+#   - acc_des     = [5,5,8, 60,60,15] (增强阻尼, 减小触地冲击)
+#   - duration    = 400 (低步频, 默认 270)
+#
+# 每条腿占 4 个 step, 四个腿共 16 个 step 构成完整周期
+
+# ══ 左前腿 (LF) — foot_pose[0] ══
+[[step]]
+mode = 11
+gait_id = 110
+contact = 15
+vel_des = [ 0.06, 0.0, 0.0,]
+rpy_des = [ 0.0, 0.0, 0.0,]
+pos_des = [ 0.0, 0.0, -0.08,]
+acc_des = [ 5.0, 5.0, 8.0, 60.0, 60.0, 15.0,]
+ctrl_point = [ 0.04, 0.0, 0.02,]
+foot_pose = [ 0.065, 0.0, 0.0, 0.0, 0.0, 0.0,]
+step_height = [ 0.14, 0.14,]
+value = 0
+duration = 400
+
+[[step]]
+mode = 11
+gait_id = 110
+contact = 15
+vel_des = [ 0.06, 0.0, 0.0,]
+rpy_des = [ 0.0, 0.0, 0.0,]
+pos_des = [ 0.0, 0.0, -0.08,]
+acc_des = [ 5.0, 5.0, 8.0, 60.0, 60.0, 15.0,]
+ctrl_point = [ 0.04, 0.0, 0.02,]
+foot_pose = [ 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,]
+step_height = [ 0.14, 0.14,]
+value = 0
+duration = 400
+
+[[step]]
+mode = 11
+gait_id = 110
+contact = 15
+vel_des = [ 0.06, 0.0, 0.0,]
+rpy_des = [ 0.0, 0.0, 0.0,]
+pos_des = [ 0.0, 0.0, -0.08,]
+acc_des = [ 5.0, 5.0, 8.0, 60.0, 60.0, 15.0,]
+ctrl_point = [ 0.04, 0.0, 0.02,]
+foot_pose = [ 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,]
+step_height = [ 0.14, 0.14,]
+value = 0
+duration = 400
+
+[[step]]
+mode = 11
+gait_id = 110
+contact = 15
+vel_des = [ 0.06, 0.0, 0.0,]
+rpy_des = [ 0.0, 0.0, 0.0,]
+pos_des = [ 0.0, 0.0, -0.08,]
+acc_des = [ 5.0, 5.0, 8.0, 60.0, 60.0, 15.0,]
+ctrl_point = [ 0.04, 0.0, 0.02,]
+foot_pose = [ 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,]
+step_height = [ 0.14, 0.14,]
+value = 0
+duration = 400
+
+# ══ 右前腿 (RF) — foot_pose[1] ══
+[[step]]
+mode = 11
+gait_id = 110
+contact = 15
+vel_des = [ 0.06, 0.0, 0.0,]
+rpy_des = [ 0.0, 0.0, 0.0,]
+pos_des = [ 0.0, 0.0, -0.08,]
+acc_des = [ 5.0, 5.0, 8.0, 60.0, 60.0, 15.0,]
+ctrl_point = [ 0.04, 0.0, 0.02,]
+foot_pose = [ 0.0, 0.065, 0.0, 0.0, 0.0, 0.0,]
+step_height = [ 0.14, 0.14,]
+value = 0
+duration = 400
+
+[[step]]
+mode = 11
+gait_id = 110
+contact = 15
+vel_des = [ 0.06, 0.0, 0.0,]
+rpy_des = [ 0.0, 0.0, 0.0,]
+pos_des = [ 0.0, 0.0, -0.08,]
+acc_des = [ 5.0, 5.0, 8.0, 60.0, 60.0, 15.0,]
+ctrl_point = [ 0.04, 0.0, 0.02,]
+foot_pose = [ 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,]
+step_height = [ 0.14, 0.14,]
+value = 0
+duration = 400
+
+[[step]]
+mode = 11
+gait_id = 110
+contact = 15
+vel_des = [ 0.06, 0.0, 0.0,]
+rpy_des = [ 0.0, 0.0, 0.0,]
+pos_des = [ 0.0, 0.0, -0.08,]
+acc_des = [ 5.0, 5.0, 8.0, 60.0, 60.0, 15.0,]
+ctrl_point = [ 0.04, 0.0, 0.02,]
+foot_pose = [ 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,]
+step_height = [ 0.14, 0.14,]
+value = 0
+duration = 400
+
+[[step]]
+mode = 11
+gait_id = 110
+contact = 15
+vel_des = [ 0.06, 0.0, 0.0,]
+rpy_des = [ 0.0, 0.0, 0.0,]
+pos_des = [ 0.0, 0.0, -0.08,]
+acc_des = [ 5.0, 5.0, 8.0, 60.0, 60.0, 15.0,]
+ctrl_point = [ 0.04, 0.0, 0.02,]
+foot_pose = [ 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,]
+step_height = [ 0.14, 0.14,]
+value = 0
+duration = 400
+
+# ══ 左后腿 (LR) — foot_pose[2] ══
+[[step]]
+mode = 11
+gait_id = 110
+contact = 15
+vel_des = [ 0.06, 0.0, 0.0,]
+rpy_des = [ 0.0, 0.0, 0.0,]
+pos_des = [ 0.0, 0.0, -0.08,]
+acc_des = [ 5.0, 5.0, 8.0, 60.0, 60.0, 15.0,]
+ctrl_point = [ 0.04, 0.0, 0.02,]
+foot_pose = [ 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,]
+step_height = [ 0.14, 0.14,]
+value = 0
+duration = 400
+
+[[step]]
+mode = 11
+gait_id = 110
+contact = 15
+vel_des = [ 0.06, 0.0, 0.0,]
+rpy_des = [ 0.0, 0.0, 0.0,]
+pos_des = [ 0.0, 0.0, -0.08,]
+acc_des = [ 5.0, 5.0, 8.0, 60.0, 60.0, 15.0,]
+ctrl_point = [ 0.04, 0.0, 0.02,]
+foot_pose = [ 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,]
+step_height = [ 0.14, 0.14,]
+value = 0
+duration = 400
+
+[[step]]
+mode = 11
+gait_id = 110
+contact = 15
+vel_des = [ 0.06, 0.0, 0.0,]
+rpy_des = [ 0.0, 0.0, 0.0,]
+pos_des = [ 0.0, 0.0, -0.08,]
+acc_des = [ 5.0, 5.0, 8.0, 60.0, 60.0, 15.0,]
+ctrl_point = [ 0.04, 0.0, 0.02,]
+foot_pose = [ 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,]
+step_height = [ 0.14, 0.14,]
+value = 0
+duration = 400
+
+[[step]]
+mode = 11
+gait_id = 110
+contact = 15
+vel_des = [ 0.06, 0.0, 0.0,]
+rpy_des = [ 0.0, 0.0, 0.0,]
+pos_des = [ 0.0, 0.0, -0.08,]
+acc_des = [ 5.0, 5.0, 8.0, 60.0, 60.0, 15.0,]
+ctrl_point = [ 0.04, 0.0, 0.02,]
+foot_pose = [ 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,]
+step_height = [ 0.14, 0.14,]
+value = 0
+duration = 400
+
+# ══ 右后腿 (RR) — foot_pose[3] ══
+[[step]]
+mode = 11
+gait_id = 110
+contact = 15
+vel_des = [ 0.06, 0.0, 0.0,]
+rpy_des = [ 0.0, 0.0, 0.0,]
+pos_des = [ 0.0, 0.0, -0.08,]
+acc_des = [ 5.0, 5.0, 8.0, 60.0, 60.0, 15.0,]
+ctrl_point = [ 0.04, 0.0, 0.02,]
+foot_pose = [ 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,]
+step_height = [ 0.14, 0.14,]
+value = 0
+duration = 400
+
+[[step]]
+mode = 11
+gait_id = 110
+contact = 15
+vel_des = [ 0.06, 0.0, 0.0,]
+rpy_des = [ 0.0, 0.0, 0.0,]
+pos_des = [ 0.0, 0.0, -0.08,]
+acc_des = [ 5.0, 5.0, 8.0, 60.0, 60.0, 15.0,]
+ctrl_point = [ 0.04, 0.0, 0.02,]
+foot_pose = [ 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,]
+step_height = [ 0.14, 0.14,]
+value = 0
+duration = 400
+
+[[step]]
+mode = 11
+gait_id = 110
+contact = 15
+vel_des = [ 0.06, 0.0, 0.0,]
+rpy_des = [ 0.0, 0.0, 0.0,]
+pos_des = [ 0.0, 0.0, -0.08,]
+acc_des = [ 5.0, 5.0, 8.0, 60.0, 60.0, 15.0,]
+ctrl_point = [ 0.04, 0.0, 0.02,]
+foot_pose = [ 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,]
+step_height = [ 0.14, 0.14,]
+value = 0
+duration = 400
+
+[[step]]
+mode = 11
+gait_id = 110
+contact = 15
+vel_des = [ 0.06, 0.0, 0.0,]
+rpy_des = [ 0.0, 0.0, 0.0,]
+pos_des = [ 0.0, 0.0, -0.08,]
+acc_des = [ 5.0, 5.0, 8.0, 60.0, 60.0, 15.0,]
+ctrl_point = [ 0.04, 0.0, 0.02,]
+foot_pose = [ 0.0, 0.0, 0.0, 0.0, 0.0, 0.0,]
+step_height = [ 0.14, 0.14,]
+value = 0
+duration = 400
