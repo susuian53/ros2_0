@@ -14,7 +14,7 @@ PATH_CSV = "/home/cyberdog_sim/src/workspace/track_path.csv"
 # ═══════════════════════════════════════════════════════
 # 跟踪参数
 # ═══════════════════════════════════════════════════════
-START_INDEX = 6249     # 起点路点索引 (由 susuian1.py 设置)
+START_INDEX = 6500     # 起点路点索引 (由 susuian1.py 设置)
 LOOKAHEAD       = 0.50      # 前视距离 (m)
 LOOKAHEAD_MIN   = 0.25      # 弯道近距前视
 ANGLE_THRESH    = 15.0      # 航向修正阈值 (°) — 放宽减少无意义旋转
@@ -27,7 +27,7 @@ STUCK_EPS       = 0.008     # 卡住位移阈值 (m), 放宽
 GOAL_TOL        = 0.35      # 终点判定半径 (m)
 
 # ═══════════════════════════════════════════════════════
-# 步态区域 (按优先级排序, 第一个匹配的生效)
+# 步态切换段 (按路点顺序, 第一个匹配的生效)
 #
 # gait 类型:
 #   forward       — 普通前进
@@ -35,45 +35,46 @@ GOAL_TOL        = 0.35      # 终点判定半径 (m)
 #   high_forward  — 高抬腿 (石板路、坎)
 #   crouch        — 匍匐前进 (限高杆)
 #   slope         — 斜坡慢走 + 力控补偿
+#   jump          — 跳跃动作
 #
-# 每个区域: dict(name, gait, step_m, speed_ms, x_min, x_max, y_min, y_max)
-#   x_min/x_max 用 ±99 表示不限
+# 每个段: dict(name, gait, step_m, speed_ms, start, end)
+#   start/end 写 WAYPOINTS 里的路点名，按路径顺序切换
 # ═══════════════════════════════════════════════════════
-ZONES = [
-    dict(name="S1_back",   gait="backward",
-         step_m=0.08, speed_ms=0.15, times=1,
-         x_min=-99, x_max=2.5,  y_min=-99, y_max=0.6),
+GAIT_STAGES = [
+    dict(name="S1_back", gait="backward",
+         step_m=0.08, speed_ms=0.15,
+         start="SPAWN", end="PRE_TURN"),
 
     dict(name="bridge_bump", gait="high_forward",
          step_m=0.06, speed_ms=0.12,
-         x_min=3.0, x_max=99,   y_min=7.5, y_max=8.5),
-    
-   
+         start="BR_BOT", end="BR_TOP"),
+
     dict(name="crouch_bar1", gait="crouch",
-         step_m=0.04, speed_ms=0.13, times=2,
-         x_min=-2, x_max=0.6,   y_min=8.3, y_max=10.2),
-    
-     dict(name="crouch_bar2", gait="crouch",
-          step_m=0.04, speed_ms=0.13,
-          x_min=1.9, x_max=2.5,   y_min=9.3, y_max=11.8),
+         step_m=0.04, speed_ms=0.13,
+         start="CH1_IN", end="S4_MID"),
+
+    dict(name="crouch_bar2", gait="crouch",
+         step_m=0.04, speed_ms=0.13,
+         start="BAR2_MID", end="CH3_IN_RET"),
+
+    # ── 斜坡段 ──
+    dict(name="slope_top", gait="slope",
+         step_m=0.03, speed_ms=0.03,
+         start="TOP_L", end="FINISH"),
 
     # ── FINISH 跳跃 → START2 ──
     dict(name="jump_finish", gait="jump",
-         step_m=0.08, speed_ms=0.20, times=1,
-         x_min=3.0, x_max=3.5, y_min=13.0, y_max=13.6),
+         step_m=0.08, speed_ms=0.20,
+         start="FINISH", end="START2"),
 
-    # ── 跳跃后正常寻迹 (START2 → FOOTBALL3 → TOFINSH → FINISH_RET) ──
-    dict(name="post_jump", gait="forward",
+    # ── 跳跃后正常寻迹 (START2 → A1 → A2) ──
+    dict(name="post_jump", gait="high_forward",
+         step_m=0.09, speed_ms=0.30,
+         start="START2", end="A1"),
+
+    dict(name="default", gait="forward",
          step_m=STEP_FAR, speed_ms=0.22,
-         x_min=0.0, x_max=3.0, y_min=12.5, y_max=15.0),
-
-    dict(name="slope_area", gait="slope",
-         step_m=0.03, speed_ms=0.03,
-         x_min=-99, x_max=99,   y_min=11.5, y_max=99),
-
-    dict(name="default",   gait="forward",
-         step_m=STEP_FAR, speed_ms=0.22,
-         x_min=-99, x_max=99,   y_min=-99, y_max=99),
+         start=None, end=None),
 ]
 
 # ═══════════════════════════════════════════════════════

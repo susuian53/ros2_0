@@ -233,6 +233,19 @@ class GaitLib:
     def step_forward(self, distance=0.08, speed=0.2):
         if distance <= 0 or speed <= 0: return
         self._step_run(vf=speed, dur_ms=max(100, int(distance/(speed*MPS_PER_SEC)*1000*STEP_MARGIN)))
+
+    def low_forward(self, distance=0.06, speed=0.10):
+        """低姿态高抬腿前进：距离制接口。"""
+        self.crouch_step_forward(distance=distance, speed=speed)
+
+    def side_step(self, distance=0.03, speed=0.05):
+        """侧着走：distance>0 右移，distance<0 左移。"""
+        self.step_shift(distance=distance, speed=speed)
+
+    def forward_step(self, distance=0.08, speed=0.2):
+        """普通前进：距离制接口。"""
+        self.step_forward(distance=distance, speed=speed)
+
     def step_backward(self, distance=0.05, speed=0.1):
         if distance <= 0 or speed <= 0: return
         self._step_run(vf=-speed, dur_ms=max(100, int(distance/(speed*MPS_PER_SEC)*1000*STEP_MARGIN)))
@@ -241,6 +254,9 @@ class GaitLib:
         if rate is None: rate = 0.5 if abs(degrees) > 30 else 0.25
         rad = math.radians(abs(degrees))
         vy = rate if degrees > 0 else -rate
+        vl_kick = rate * 0.5 if degrees > 0 else -rate * 0.5
+        # 先向转向侧踢腿 (侧移), 再旋转
+        self._step_run(vl=vl_kick, vy=vy * 0.3, step_h=0.06, dur_ms=100)
         self._step_run(vy=vy, step_h=0.05, dur_ms=max(150, int(rad/(rate*RAD_PER_SEC)*1000*STEP_MARGIN)))
     def step_turn_low(self, degrees, rate=None):
         """低姿旋转 (限高杆/斜坡区域, mode=62 gait=110 保持低重心)"""
@@ -248,7 +264,10 @@ class GaitLib:
         if rate is None: rate = 0.3 if abs(degrees) > 30 else 0.2
         rad = math.radians(abs(degrees))
         vy = rate if degrees > 0 else -rate
+        vl_kick = rate * 0.5 if degrees > 0 else -rate * 0.5
         dur_ms = max(150, int(rad/(rate*RAD_PER_SEC)*1000*STEP_MARGIN))
+        self._step_run(mode=MODE_MOTION, gait_id=GAIT_USER, vl=vl_kick, vy=vy * 0.3,
+                       step_h=0.06, pos_z=0.10, dur_ms=100)
         self._step_run(mode=MODE_MOTION, gait_id=GAIT_USER, vy=vy,
                        step_h=0.06, pos_z=0.10, dur_ms=dur_ms)
     def step_high_forward(self, distance=0.08, speed=0.15):
