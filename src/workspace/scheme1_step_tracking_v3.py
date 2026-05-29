@@ -217,10 +217,17 @@ def run():
     low_stuck_last_x = 0.0
     low_stuck_last_y = 0.0
 
-    # 斜面4段: 侧移→前进→侧移→后退, 全程不转弯(yaw≈90°)
+    # 斜面4段: 全部侧移, 拐弯渐进调角, XY偏移大时停下修正
+    SLOPE_SIDE_SPEED  = 0.05    # 侧移速度
+    SLOPE_TURN_MAX_DEG = 4.0    # 每次最大转角 (°)
+    SLOPE_TURN_RATE    = 0.12   # 转角速率
+    XY_OFFSET_MAX      = 0.06   # XY偏移阈值 (m)
     slope_seg = 0               # 当前段 0-3
     slope_seg_targets = ['TOP_L', 'TOP_LL', 'TOP_RR', 'FINISH']
-    slope_seg_modes   = ['side', 'forward', 'side', 'backward']
+    slope_seg_starts  = ['BR_TOP', 'TOP_L', 'TOP_LL', 'TOP_RR']  # 每段起点路点名
+    slope_turning = False       # 拐弯调角阶段
+    slope_turn_target_yaw = 0.0 # 拐弯目标yaw
+    slope_final_turn = False    # 斜面完成后的最终回正调角
     slope_last_x = 0.0
     slope_last_y = 0.0
 
@@ -575,89 +582,128 @@ def run():
 
         # ── 默认行为：按角度判断是否旋转（若被抑制则跳过转向） ──
         if stage['gait'] == 'slope':
-            # ── 斜面4段: 侧移→前进→侧移→后退, 全程不转弯(yaw≈90°) ──
+            # ── 斜面4段: 全部侧移, 拐弯渐进调角, XY偏移大时停下修正 ──
             if slope_seg < len(slope_seg_targets):
                 tgt_name = slope_seg_targets[slope_seg]
                 tgt_idx = _idx(tgt_name)
                 if tgt_idx >= 0:
                     nx, ny = path[tgt_idx][0], path[tgt_idx][1]
                     dist_tgt = math.hypot(nx - x, ny - y)
+                    target_dir = math.atan2(ny - y, nx - x)
 
-                    # 到达当前目标节点 → 进入下一段
+                    # ── 拐弯调角阶段: 小步渐进旋转, 不移动 ──
+                    if slope_turning:
+                        yaw_err = normalize_angle(slope_turn_target_yaw - yaw)
+                        if abs(yaw_err) < math.radians(3):
+                            # 调角完成, 进入下一段
+                            slope_turning = False
+                            slope_seg += 1
+                            slope_last_x, slope_last_y = x, y
+                            if slope_seg < len(slope_seg_targets):
+                                print(f"  ✓ 拐弯完成 → 段{slope_seg+1}/4 → {slope_seg_targets[slope_seg]}")
+                            else:
+                                print(f"  ✓ 斜面4段完成!")
+                            continue
+                        else:
+                            turn_deg = max(-SLOPE_TURN_MAX_DEG, min(SLOPE_TURN_MAX_DEG, math.degrees(yaw_err)))
+                            gl.step_turn(turn_deg, rate=SLOPE_TURN_RATE)
+                            continue
+
+                    # ── 到达路点, 开始拐弯 ──
                     if dist_tgt < 0.30:
                         print(f"  📍 到达 {tgt_name}, ", end='')
-                        slope_seg += 1
-                        if slope_seg < len(slope_seg_targets):
-                            print(f"段{slope_seg+1}/4 {slope_seg_modes[slope_seg]} → {slope_seg_targets[slope_seg]}")
+                        if slope_seg + 1 < len(slope_seg_targets):
+                            next_name = slope_seg_targets[slope_seg + 1]
+                            next_idx = _idx(next_name)
+                            if next_idx >= 0:
+                                next_dir = math.atan2(
+                                    path[next_idx][1] - y, path[next_idx][0] - x)
+                                # vl方向=yaw+90°, 要让vl指向目标 → yaw=目标方向-90°
+                                slope_turn_target_yaw = normalize_angle(next_dir - math.pi / 2)
+                                slope_turning = True
+                                print(f"拐弯调角中... (目标yaw={math.degrees(slope_turn_target_yaw):.0f}°)")
                         else:
-                            print(f"斜面4段完成!")
+                            slope_seg += 1
+                            print(f"斜面完成!")
+                        slope_last_x, slope_last_y = x, y
                         continue
 
-                    mode = slope_seg_modes[slope_seg]
+                    # 侧移理想朝向: yaw = 目标方向 - 90°, 使vl指向目标
+                    desired_yaw = normalize_angle(target_dir - math.pi / 2)
+
+                    # ── XY偏移检测: 计算到理想路径线的垂直距离 ──
+                    start_name = slope_seg_starts[slope_seg]
+                    start_idx = _idx(start_name)
+                    if start_idx >= 0:
+                        sx, sy = path[start_idx][0], path[start_idx][1]
+                        vx, vy = nx - sx, ny - sy
+                        cx, cy = x - sx, y - sy
+                        v_len = math.hypot(vx, vy)
+                        if v_len > 0.001:
+                            cross_track = abs(vx * cy - vy * cx) / v_len
+                            if cross_track > XY_OFFSET_MAX:
+                                # 停下修正: 纯侧移向路径线靠拢
+                                # CP>0表示在路径线左侧, 需向右修正(vl<0)
+                                sign = -1.0 if (vx * cy - vy * cx) > 0 else 1.0
+                                vl = sign * SLOPE_SIDE_SPEED * 0.8
+                                yaw_err = normalize_angle(desired_yaw - yaw)
+                                vy_cmd = max(-0.15, min(0.15, yaw_err * 1.5))
+                                gl._step_run(vf=0.0, vl=vl, vy=vy_cmd, dur_ms=300)
+                                slope_last_x, slope_last_y = x, y
+                                continue
+
+                    # ── 侧移 + Y连续修正: 同时进行, 不分开 ──
                     step_m = stage['step_m']
+                    a_err = normalize_angle(target_dir - yaw)
+                    shift_dir = 1.0 if math.sin(a_err) > 0 else -1.0
 
-                    if mode == 'side':
-                        # 侧移: 朝向目标节点, yaw保持90°
-                        side_speed = 0.05
-                        target_dir = math.atan2(ny - y, nx - x)
-                        a_err = normalize_angle(target_dir - yaw)
-                        shift_dir = 1.0 if math.sin(a_err) > 0 else -1.0
-                        vl = shift_dir * side_speed
+                    y_err = ny - y
+                    x_err = nx - x
 
-                        # y漂移修正
-                        y_err = ny - y
-                        vf = 0.0
-                        if abs(y_err) > 0.02:
-                            vf = side_speed * 0.6 * (1.0 if y_err > 0 else -1.0)
-                        # 前滑检测
-                        if slope_last_x != 0 or slope_last_y != 0:
-                            dx_r = x - slope_last_x; dy_r = y - slope_last_y
-                            if dx_r * math.cos(yaw) + dy_r * math.sin(yaw) > 0.003:
-                                vf -= side_speed * 0.5
+                    # 基础侧移速度
+                    vl = shift_dir * SLOPE_SIDE_SPEED
 
-                        yaw_err_90 = normalize_angle(math.radians(90) - yaw)
-                        vy = max(-0.2, min(0.2, yaw_err_90 * 2.0))
-                        step_d = min(dist_tgt, step_m)
-                        dur_ms = max(200, int(step_d/(side_speed*1.0)*1000*1.3))
-                        gl._step_run(vf=vf, vl=vl, vy=vy, dur_ms=dur_ms)
-                        slope_last_x, slope_last_y = x, y
+                    # Y连续P修正: 强增益, 与y误差成正比, 始终叠加在侧移上
+                    vf = y_err * 4.0  # 高增益: 0.05m偏差→vf=0.20
+                    vf = max(-SLOPE_SIDE_SPEED * 1.2, min(SLOPE_SIDE_SPEED * 1.2, vf))
 
-                    elif mode == 'forward':
-                        # 前进(壁虎低姿态): 检测x漂移, vl微调保持对准目标
-                        fwd_speed = 0.04
-                        step_d = min(dist_tgt, step_m)
-                        vf = fwd_speed
-                        vl = 0.0
+                    # Y偏差大时减小侧移速度(专注修正), 但不停
+                    if abs(y_err) > 0.03:
+                        vl *= 0.3
 
-                        # x漂移修正: 偏离目标x则侧移补偿
-                        x_err = nx - x
-                        if abs(x_err) > 0.02:
-                            vl = fwd_speed * 0.6 * (1.0 if x_err > 0 else -1.0)
+                    # X方向已越过目标: 反向侧移
+                    if x_err * shift_dir > 0 and abs(x_err) > 0.02:
+                        vl = -shift_dir * SLOPE_SIDE_SPEED * 0.6
 
-                        # 前滑检测
-                        if slope_last_x != 0 or slope_last_y != 0:
-                            dx_r = x - slope_last_x; dy_r = y - slope_last_y
-                            if dx_r * math.cos(yaw) + dy_r * math.sin(yaw) > 0.003:
-                                vf -= fwd_speed * 0.5
+                    # 后滑检测 (重力对抗)
+                    if slope_last_x != 0 or slope_last_y != 0:
+                        dx_r = x - slope_last_x; dy_r = y - slope_last_y
+                        fwd_slide = dx_r * math.cos(yaw) + dy_r * math.sin(yaw)
+                        if fwd_slide < -0.002:
+                            vf += SLOPE_SIDE_SPEED * 0.8
 
-                        yaw_err_90 = normalize_angle(math.radians(90) - yaw)
-                        vy = max(-0.2, min(0.2, yaw_err_90 * 2.0))
-                        dur_ms = max(300, int(step_d/(fwd_speed*1.0)*1000*1.3))
-                        gl._step_run(vf=vf, vl=vl, vy=vy, dur_ms=dur_ms,
-                                     mode=62, gait_id=110, step_h=0.06, pos_z=0.10)
-                        slope_last_x, slope_last_y = x, y
-
-                    elif mode == 'backward':
-                        # 后退(壁虎低姿态): 对准目标倒退, yaw保持90°
-                        yaw_err_90 = normalize_angle(math.radians(90) - yaw)
-                        vy = max(-0.15, min(0.15, yaw_err_90 * 1.5))
-                        step_d = min(dist_tgt, step_m)
-                        dur_ms = max(300, int(step_d/(0.04*1.0)*1000*1.3))
-                        gl._step_run(vf=-0.04, vy=vy, dur_ms=dur_ms)
-                        slope_last_x, slope_last_y = x, y
+                    desired_yaw = normalize_angle(target_dir - math.pi / 2)
+                    yaw_err = normalize_angle(desired_yaw - yaw)
+                    vy_cmd = max(-0.2, min(0.2, yaw_err * 2.0))
+                    step_d = min(dist_tgt, step_m)
+                    dur_ms = max(200, int(step_d/(SLOPE_SIDE_SPEED*1.0)*1000*1.3))
+                    gl._step_run(vf=vf, vl=vl, vy=vy_cmd, dur_ms=dur_ms)
+                    slope_last_x, slope_last_y = x, y
             else:
-                # 斜面段全部完成, 使用壁虎前进过渡
-                gl.slope_step_forward(stage['step_m'], speed=stage['speed_ms'])
+                # 斜面段全部完成, 渐进回转yaw使vl对准后续路径方向
+                if not slope_final_turn:
+                    # 取前方20个路点的方向作为后续目标方向
+                    ahead = min(idx + 20, len(path) - 1)
+                    next_dir = math.atan2(path[ahead][1] - y, path[ahead][0] - x)
+                    slope_turn_target_yaw = normalize_angle(next_dir - math.pi / 2)
+                    slope_final_turn = True
+                    print(f"  斜面完成, 回转yaw→{math.degrees(slope_turn_target_yaw):.0f}°")
+                yaw_err = normalize_angle(slope_turn_target_yaw - yaw)
+                if abs(yaw_err) < math.radians(3):
+                    gl.slope_step_forward(stage['step_m'], speed=stage['speed_ms'])
+                else:
+                    turn_deg = max(-SLOPE_TURN_MAX_DEG, min(SLOPE_TURN_MAX_DEG, math.degrees(yaw_err)))
+                    gl.step_turn(turn_deg, rate=SLOPE_TURN_RATE)
         elif abs(a_err) > cfg.ANGLE_THRESH and not suppress_turn_until_2A:
             # backward/high_forward: 直走不调朝向不侧移 (独木桥等场景必须直线前进)
             if stage['gait'] in ('backward', 'high_forward'):
