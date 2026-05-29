@@ -1,11 +1,15 @@
 #!/usr/bin/env python3
 """
-susuian.py — 一键启动：编译 → 仿真环境 → 业务节点 (scheme1_step_tracking_v3)
+susuian1.py — 一键启动：环境检查 → 仿真环境 → 业务节点 (scheme1_step_tracking_v3)
+
+与 susuian.py 的区别:
+- 启动前做仿真环境预检查
+- 退出时只停止业务节点，不停止仿真环境
 
 用法（在容器内执行）:
-    python3 susuian.py
-    python3 susuian.py --lidar --camera
-    python3 susuian.py --world race
+    python3 susuian1.py
+    python3 susuian1.py --lidar --camera
+    python3 susuian1.py --world race
 """
 
 import os
@@ -23,17 +27,15 @@ import re
 BASE_DIR = os.path.dirname(os.path.abspath(__file__))
 LOG_DIR = os.path.join(BASE_DIR, "logs")
 INSTALL_DIR = os.path.join(BASE_DIR, "install")
-BUILD_DIR = os.path.join(BASE_DIR, "build")
 LCM_SRC_DIR = os.path.join(BASE_DIR, "src", "cyberdog_locomotion", "common", "lcm_type", "lcm")
-
-# ── workspace Python 方案 (无需编译) ──
 TRACKER_SCRIPT = os.path.join(BASE_DIR, "src", "workspace", "scheme1_step_tracking_v3.py")
+BUILD_PATH_SCRIPT = os.path.join(BASE_DIR, "src", "workspace", "build_path.py")
 
 
 # ── 工具函数 ─────────────────────────────────────────
 
 def run_cmd(cmd, cwd=BASE_DIR, env=None, timeout=None):
-    """运行命令，返回 (returncode, stdout)"""
+    """运行命令，返回 (returncode, stdout, stderr)"""
     run_env = os.environ.copy()
     if env:
         run_env.update(env)
@@ -47,23 +49,49 @@ def run_cmd(cmd, cwd=BASE_DIR, env=None, timeout=None):
         return -1, "", "timeout"
 
 
+def _is_process_running(pattern):
+    """检查是否已有匹配进程在运行。"""
+    ret, out, _ = run_cmd(f"pgrep -f \"{pattern}\"")
+    return ret == 0 and bool(out.strip())
+
+
 def ensure_x11_access():
     display = os.environ.get("DISPLAY", "")
     if not display:
         print("[launch] ⚠️  DISPLAY 未设置，图形界面可能无法打开")
         print("[launch]    请在宿主机执行: xhost +")
-    else:
-        print(f"[launch] DISPLAY={display}")
+        return False
+    print(f"[launch] DISPLAY={display}")
+    return True
+
+
+def check_sim_environment():
+    """检查仿真启动所需的基础条件。"""
+    ok = True
+    if not shutil.which("lcm-gen"):
+        print("[launch] ✗ 未找到 lcm-gen，请确认已安装 LCM")
+        ok = False
+    if not ensure_x11_access():
+        ok = False
+
+    required = [
+        os.path.join(BASE_DIR, "src", "cyberdog_simulator", "cyberdog_gazebo", "script", "launchgazebo.sh"),
+        os.path.join(BASE_DIR, "src", "cyberdog_simulator", "cyberdog_gazebo", "script", "launchvisual.sh"),
+        os.path.join(BASE_DIR, "src", "cyberdog_simulator", "cyberdog_gazebo", "script", "launchcontrol.sh"),
+        TRACKER_SCRIPT,
+    ]
+    for path in required:
+        if not os.path.exists(path):
+            print(f"[launch] ✗ 缺少必要文件: {path}")
+            ok = False
+    return ok
 
 
 def step_fix_multicast():
     """尝试修复 LCM 组播路由，这是仿真通讯的基础"""
     print("[launch] 检查并配置组播路由 (224.0.0.0/4)...")
-    # 优先尝试 ip route，它是现代 Linux 的标准
     cmd = "sudo ip route add 224.0.0.0/4 dev lo 2>/dev/null || sudo route add -net 224.0.0.0 netmask 240.0.0.0 dev lo 2>/dev/null || true"
     subprocess.run(cmd, shell=True)
-    
-    # 验证是否成功
     ret, out, _ = run_cmd("ip route | grep 224.0.0.0")
     if "224.0.0.0" in out:
         print("[launch] ✓ 组播路由已就绪")
@@ -72,13 +100,24 @@ def step_fix_multicast():
         print("[launch]    sudo ip route add 224.0.0.0/4 dev lo")
 
 
-def kill_simulation():
-    procs = ["gzclient", "gzserver", "rviz2", "cyberdog_control",
-             "robot_controller", "lcm-.*", "scheme1_step_tracking"]
+def step_build_path():
+    """运行 build_path.py 生成新的 track_path.csv。"""
+    print("[launch] 重新生成路径文件 track_path.csv...")
+    ret, out, err = run_cmd(f"{sys.executable} -B {BUILD_PATH_SCRIPT}")
+    if ret != 0:
+        tail = (out + err)[-800:]
+        print(f"[launch] ✗ 路径生成失败:\n{tail}")
+        return False
+    print("[launch] ✓ 路径已更新")
+    return True
+
+
+def kill_business_nodes():
+    """只停止业务节点，不关闭仿真环境。"""
+    procs = ["scheme1_step_tracking", "gnome-terminal.*tracker_output"]
     for p in procs:
         subprocess.run(["pkill", "-9", "-f", p], capture_output=True)
-    subprocess.run(["pkill", "-9", "-f", "ros2 launch"], capture_output=True)
-    subprocess.run(["pkill", "-9", "-f", "ros2 run"], capture_output=True)
+    subprocess.run(["pkill", "-9", "-f", "ros2 run.*scheme1_step_tracking"], capture_output=True)
     time.sleep(1)
 
 
@@ -90,10 +129,8 @@ def step_generate_lcm():
         print("[launch] ⚠️  LCM 源目录不存在，跳过 LCM 生成")
         return False
 
-    # 检查是否已生成 (C++ .hpp 和 Python .py 都要有)
     cpp_ok = os.path.exists(os.path.join(LCM_SRC_DIR, "simulator_lcmt.hpp"))
-    py_ok  = os.path.exists(os.path.join(LCM_SRC_DIR, "robot_control_cmd_lcmt.py"))
-
+    py_ok = os.path.exists(os.path.join(LCM_SRC_DIR, "robot_control_cmd_lcmt.py"))
     if cpp_ok and py_ok:
         print("[launch] ✓ LCM 头文件 + Python 模块已存在，跳过生成")
         return True
@@ -101,16 +138,12 @@ def step_generate_lcm():
     print("[launch] 生成 LCM 类型 (C++ + Python)...")
     lcm_files = os.path.join(LCM_SRC_DIR, "*.lcm")
 
-    # 生成 C++ 头文件
-    ret, out, err = run_cmd(
-        f"lcm-gen -x {lcm_files} --cpp-hpath {LCM_SRC_DIR}/")
+    ret, _, err = run_cmd(f"lcm-gen -x {lcm_files} --cpp-hpath {LCM_SRC_DIR}/")
     if ret != 0:
         print(f"[launch] ✗ lcm-gen C++ 失败:\n{err}")
         return False
 
-    # 生成 Python 模块
-    ret, out, err = run_cmd(
-        f"lcm-gen -p {lcm_files} --ppath {LCM_SRC_DIR}/")
+    ret, _, err = run_cmd(f"lcm-gen -p {lcm_files} --ppath {LCM_SRC_DIR}/")
     if ret != 0:
         print(f"[launch] ✗ lcm-gen Python 失败:\n{err}")
         return False
@@ -123,12 +156,11 @@ def step_build_packages(packages):
     """colcon build 指定包"""
     pkgs = " ".join(packages)
     print(f"[launch] 编译包: {pkgs} ...")
-    ros_env = {"PATH": os.environ.get("PATH", "")}
     ret, out, err = run_cmd(
         f"bash -c 'source /opt/ros/galactic/setup.bash && "
         f"cd {BASE_DIR} && colcon build --packages-select {pkgs} "
         f"--merge-install --symlink-install --packages-skip-build-finished'",
-        timeout=300
+        timeout=300,
     )
     if ret != 0:
         tail = (out + err)[-800:]
@@ -140,10 +172,7 @@ def step_build_packages(packages):
 
 def step_ensure_built():
     """确保仿真依赖已编译 (已编译则跳过)"""
-    needed = ["cyberdog_description", "cyberdog_gazebo", "cyberdog_visual",
-              "cyberdog_msg", "cyberdog_locomotion"]
-
-    # 需要编译的包列表
+    needed = ["cyberdog_description", "cyberdog_gazebo", "cyberdog_visual", "cyberdog_msg", "cyberdog_locomotion"]
     to_build = []
     for pkg in needed:
         install_pkg = os.path.join(INSTALL_DIR, "share", pkg)
@@ -151,135 +180,13 @@ def step_ensure_built():
             print(f"[launch] ✓ {pkg} 已安装，跳过")
         else:
             to_build.append(pkg)
-
     if not to_build:
         print("[launch] ✓ 所有包已编译，跳过构建步骤")
         return True
-
-    # 一次性编译所有未安装的包 (colcon 自己也会跳过已完成的)
     return step_build_packages(to_build)
 
 
 # ── 仿真启动 ─────────────────────────────────────────
-
-def step_launch_sim(args, procs_list, my_env):
-    """按顺序启动 Gazebo / RViz / Controller，传递初始坐标"""
-    os.makedirs(LOG_DIR, exist_ok=True)
-
-    # Gazebo (带初始坐标)
-    print(f"[launch] 启动 Gazebo 仿真 (坐标: {args.init_x:.2f}, {args.init_y:.2f}, yaw={args.init_yaw:.3f})...")
-
-    # 将初始坐标注入环境变量，供 launchgazebo.sh 使用
-    sim_env = my_env.copy()
-    sim_env["INIT_X"] = str(args.init_x)
-    sim_env["INIT_Y"] = str(args.init_y)
-    sim_env["INIT_YAW"] = str(args.init_yaw)
-
-    gazebo_args = ["--world", args.world]
-    if args.lidar:
-        gazebo_args.append("--lidar")
-    if args.camera:
-        gazebo_args.append("--camera")
-
-    gz = subprocess.Popen(
-        ["bash", "./src/cyberdog_simulator/cyberdog_gazebo/script/launchgazebo.sh"] + gazebo_args,
-        stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-        env=sim_env, cwd=BASE_DIR,
-    )
-    procs_list.append(("gazebo", gz))
-    _log_thread(gz, os.path.join(LOG_DIR, "gazebo.log"))
-    
-    # 物理引擎解暂停：由于 race_gazebo.launch.py 默认 paused=true
-    # 我们在启动后稍等片刻发送解暂停服务
-    def _unpause():
-        time.sleep(12)  # 等待 gazebo 加载并 spawn 完机器人
-        print("[launch] 解除仿真暂停...")
-        run_cmd("source /opt/ros/galactic/setup.bash && ros2 service call /unpause_physics std_srvs/srv/Empty '{}'")
-    
-    threading.Thread(target=_unpause, daemon=True).start()
-    
-    time.sleep(10)
-
-    # RViz
-    print("[launch] 启动 RViz 可视化...")
-    viz = subprocess.Popen(
-        ["bash", "./src/cyberdog_simulator/cyberdog_gazebo/script/launchvisual.sh"],
-        stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-        env=my_env, cwd=BASE_DIR,
-    )
-    procs_list.append(("rviz", viz))
-    _log_thread(viz, os.path.join(LOG_DIR, "visual.log"))
-    time.sleep(3)
-
-    # Controller
-    print("[launch] 启动底层控制器...")
-    ctrl = subprocess.Popen(
-        ["bash", "./src/cyberdog_simulator/cyberdog_gazebo/script/launchcontrol.sh"],
-        stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-        env=my_env, cwd=BASE_DIR,
-    )
-    procs_list.append(("controller", ctrl))
-    _log_thread(ctrl, os.path.join(LOG_DIR, "control.log"))
-    time.sleep(3)
-
-    # Camera Web
-    if args.camera:
-        print("[launch] 启动摄像头 Web → http://localhost:8082")
-        web_cmd = (
-            "source /opt/ros/galactic/setup.bash && "
-            f"source {INSTALL_DIR}/setup.bash && "
-            f"python3 {BASE_DIR}/camera_viewer/web_server.py"
-        )
-        web = subprocess.Popen(
-            ["bash", "-c", web_cmd],
-            stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-            env=my_env, cwd=BASE_DIR,
-        )
-        procs_list.append(("camera_web", web))
-        _log_thread(web, os.path.join(LOG_DIR, "camera_web.log"))
-
-
-def step_launch_tracker(args, procs_list, my_env):
-    """启动 workspace Python 寻迹引擎 (scheme1_step_tracking_v3.py)"""
-    tracker_log = os.path.join(LOG_DIR, "tracker.log")
-
-    tracker_cmd = (
-        "source /opt/ros/galactic/setup.bash && "
-        f"source {INSTALL_DIR}/setup.bash && "
-        f"python3 -u {TRACKER_SCRIPT}"
-    )
-    print(f"[launch] 启动路径跟踪节点 (scheme1_step_tracking_v3)")
-    print(f"[launch]   脚本: {TRACKER_SCRIPT}")
-    tracker = subprocess.Popen(
-        ["bash", "-c", tracker_cmd],
-        stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
-        env=my_env, cwd=BASE_DIR,
-    )
-    procs_list.append(("tracker", tracker))
-    _log_thread(tracker, tracker_log)
-
-    # 弹出一个终端窗口实时显示 tracker 打印数据
-    # 先关闭已存在的同名终端，避免重复
-    print(f"[launch] 检查并清除旧的打印窗口...")
-    subprocess.run(
-        ["pkill", "-f", "gnome-terminal.*tracker_output"],
-        capture_output=True, timeout=3
-    )
-    time.sleep(0.5)
-
-    print(f"[launch] 打开实时打印窗口...")
-    tail_cmd = (
-        f"bash -c 'touch {tracker_log}; "
-        f"echo \"═══ 实时跟踪数据 ═══\"; "
-        f"tail -f {tracker_log}; exec bash'"
-    )
-    term = subprocess.Popen(
-        ["gnome-terminal", "-t", "tracker_output", "--", "bash", "-c", tail_cmd],
-        env=my_env,
-    )
-    # 注意: tracker_term 仅记录不参与退出清理，程序退出时保留该终端
-    procs_list.append(("tracker_term", term))
-
 
 def _log_thread(proc, log_path):
     """后台线程：把子进程输出写入日志"""
@@ -295,6 +202,126 @@ def _log_thread(proc, log_path):
             pass
 
     threading.Thread(target=_write, daemon=True).start()
+
+
+def step_launch_sim(args, procs_list, my_env):
+    """按顺序启动 Gazebo / RViz / Controller，传递初始坐标"""
+    os.makedirs(LOG_DIR, exist_ok=True)
+
+    gazebo_running = _is_process_running("gzserver|gazebo")
+    rviz_running = _is_process_running("rviz2")
+    ctrl_running = _is_process_running("cyberdog_control|robot_controller|launchcontrol.sh")
+
+    if gazebo_running:
+        print("[launch] 检测到 Gazebo 已在运行，跳过重复启动")
+    else:
+        print(f"[launch] 启动 Gazebo 仿真 (坐标: {args.init_x:.2f}, {args.init_y:.2f}, yaw={args.init_yaw:.3f})...")
+    sim_env = my_env.copy()
+    sim_env["INIT_X"] = str(args.init_x)
+    sim_env["INIT_Y"] = str(args.init_y)
+    sim_env["INIT_YAW"] = str(args.init_yaw)
+
+    gazebo_args = ["--world", args.world]
+    if args.lidar:
+        gazebo_args.append("--lidar")
+    if args.camera:
+        gazebo_args.append("--camera")
+
+    if not gazebo_running:
+        gz = subprocess.Popen(
+            ["bash", "./src/cyberdog_simulator/cyberdog_gazebo/script/launchgazebo.sh"] + gazebo_args,
+            stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+            env=sim_env, cwd=BASE_DIR,
+            start_new_session=True,
+        )
+        procs_list.append(("gazebo", gz))
+        _log_thread(gz, os.path.join(LOG_DIR, "gazebo.log"))
+
+        def _unpause():
+            time.sleep(12)
+            print("[launch] 解除仿真暂停...")
+            run_cmd("source /opt/ros/galactic/setup.bash && ros2 service call /unpause_physics std_srvs/srv/Empty '{}'")
+
+        threading.Thread(target=_unpause, daemon=True).start()
+
+        time.sleep(10)
+
+    if rviz_running:
+        print("[launch] 检测到 RViz 已在运行，跳过重复启动")
+    else:
+        print("[launch] 启动 RViz 可视化...")
+        viz = subprocess.Popen(
+            ["bash", "./src/cyberdog_simulator/cyberdog_gazebo/script/launchvisual.sh"],
+            stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+            env=my_env, cwd=BASE_DIR,
+            start_new_session=True,
+        )
+        procs_list.append(("rviz", viz))
+        _log_thread(viz, os.path.join(LOG_DIR, "visual.log"))
+        time.sleep(3)
+
+    if ctrl_running:
+        print("[launch] 检测到底层控制器已在运行，跳过重复启动")
+    else:
+        print("[launch] 启动底层控制器...")
+        ctrl = subprocess.Popen(
+            ["bash", "./src/cyberdog_simulator/cyberdog_gazebo/script/launchcontrol.sh"],
+            stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+            env=my_env, cwd=BASE_DIR,
+            start_new_session=True,
+        )
+        procs_list.append(("controller", ctrl))
+        _log_thread(ctrl, os.path.join(LOG_DIR, "control.log"))
+        time.sleep(3)
+
+    if args.camera:
+        print("[launch] 启动摄像头 Web → http://localhost:8082")
+        web_cmd = (
+            "source /opt/ros/galactic/setup.bash && "
+            f"source {INSTALL_DIR}/setup.bash && "
+            f"python3 {BASE_DIR}/camera_viewer/web_server.py"
+        )
+        web = subprocess.Popen(
+            ["bash", "-c", web_cmd],
+            stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+            env=my_env, cwd=BASE_DIR,
+            start_new_session=True,
+        )
+        procs_list.append(("camera_web", web))
+        _log_thread(web, os.path.join(LOG_DIR, "camera_web.log"))
+
+
+def step_launch_tracker(procs_list, my_env):
+    """启动 workspace Python 寻迹引擎 (scheme1_step_tracking_v3.py)"""
+    tracker_log = os.path.join(LOG_DIR, "tracker.log")
+    tracker_cmd = (
+        "source /opt/ros/galactic/setup.bash && "
+        f"source {INSTALL_DIR}/setup.bash && "
+        f"python3 -u {TRACKER_SCRIPT}"
+    )
+    print("[launch] 启动路径跟踪节点 (scheme1_step_tracking_v3)")
+    print(f"[launch]   脚本: {TRACKER_SCRIPT}")
+    tracker = subprocess.Popen(
+        ["bash", "-c", tracker_cmd],
+        stdout=subprocess.PIPE, stderr=subprocess.STDOUT,
+        env=my_env, cwd=BASE_DIR,
+        start_new_session=True,
+    )
+    procs_list.append(("tracker", tracker))
+    _log_thread(tracker, tracker_log)
+
+    print("[launch] 检查并清除旧的打印窗口...")
+    subprocess.run(["pkill", "-f", "gnome-terminal.*tracker_output"], capture_output=True, timeout=3)
+    time.sleep(0.5)
+
+    print("[launch] 打开实时打印窗口...")
+    tail_cmd = f"bash -c 'touch {tracker_log}; echo \"═══ 实时跟踪数据 ═══\"; tail -f {tracker_log}; exec bash'"
+    term = subprocess.Popen(
+        ["gnome-terminal", "-t", "tracker_output", "--", "bash", "-c", tail_cmd],
+        env=my_env,
+        start_new_session=True,
+    )
+    procs_list.append(("tracker_term", term))
 
 
 # ── 路点名 → CSV 索引解析 ──────────────────────────
@@ -319,14 +346,7 @@ def _waypoint_name_to_index(name, waypoints):
 
 
 def _calc_csv_index(waypoint_idx, waypoints, step):
-    """
-    计算第 waypoint_idx 个路点插值后在 CSV 中的行号 (0-indexed)。
-
-    逻辑与 build_path.py#build() 一致:
-      - 第 0 个路点 → CSV[0]
-      - 每个 segment i→i+1 生成 n = max(1, int(dist/step)) 个点
-      - 第 k 个路点 = CSV[ sum(n_i for i in range(k)) ]
-    """
+    """计算第 waypoint_idx 个路点插值后在 CSV 中的行号 (0-indexed)。"""
     total = 0
     for i in range(waypoint_idx):
         _, x0, y0 = waypoints[i]
@@ -338,19 +358,12 @@ def _calc_csv_index(waypoint_idx, waypoints, step):
 
 
 def resolve_start_point(value):
-    """
-    支持两种输入:
-      - 数字: 直接当作 CSV 行号
-      - 字符串 (路点名): 查 path_config.py → 计算插值索引
-
-    返回 (csv_index, x, y, yaw)
-    """
+    """支持数字 CSV 行号或路点名，返回 (csv_index, x, y, yaw)"""
     ws_dir = os.path.join(BASE_DIR, "src", "workspace")
     path_csv = os.path.join(ws_dir, "track_path.csv")
     if not os.path.exists(path_csv):
         raise FileNotFoundError(f"未找到路径文件: {path_csv}")
 
-    # 先尝试数字索引
     try:
         idx = int(value)
         with open(path_csv) as f:
@@ -365,7 +378,6 @@ def resolve_start_point(value):
     except ValueError:
         pass
 
-    # 路点名解析
     waypoints, step = _load_path_config()
     wp_idx = _waypoint_name_to_index(value, waypoints)
     csv_idx = _calc_csv_index(wp_idx, waypoints, step)
@@ -408,8 +420,7 @@ def write_start_index(idx):
 
 def main():
     parser = argparse.ArgumentParser(description="Cyberdog 一键启动脚本")
-    parser.add_argument("start_point", type=str, nargs="?",
-                        default="0",
+    parser.add_argument("start_point", type=str, nargs="?", default="0",
                         help="起点: 数字(CSV行号) 或 路点名(如 CH3_IN, SPAWN, BR_BOT)")
     parser.add_argument("--yaw", type=float, default=None,
                         help="出生朝向 (弧度)，不传则使用 CSV 中的 yaw")
@@ -421,9 +432,6 @@ def main():
     parser.add_argument("--no-tracker", action="store_true", help="不启动路径跟踪")
     args = parser.parse_args()
 
-    WS_DIR = os.path.join(BASE_DIR, "src", "workspace")
-    CONFIG_PATH = os.path.join(WS_DIR, "config_v3.py")
-
     init_x, init_y, init_yaw = 0.0, 0.0, 0.0
 
     try:
@@ -434,7 +442,7 @@ def main():
         print(f"[launch] ✓ config_v3.py START_INDEX = {start_idx}")
     except Exception as e:
         print(f"[launch] ⚠️ 起点解析失败: {e}")
-        print(f"[launch] 使用默认坐标 (0,0)")
+        print("[launch] 使用默认坐标 (0,0)")
         init_x, init_y, init_yaw = 0.0, 0.0, args.yaw if args.yaw is not None else 0.0
 
     if args.yaw is not None:
@@ -445,51 +453,49 @@ def main():
     args.init_y = init_y
     args.init_yaw = init_yaw
 
-    # ── 前置检查 ──
-    if not shutil.which("lcm-gen"):
-        print("[launch] ✗ 未找到 lcm-gen，请确认已在容器中且 LCM 已安装")
+    if not check_sim_environment():
+        print("[launch] ✗ 仿真环境检查失败，退出")
         sys.exit(1)
 
-    kill_simulation()
-    ensure_x11_access()
+    if not step_build_path():
+        print("[launch] ✗ 路径生成失败，退出")
+        sys.exit(1)
+
+    kill_business_nodes()
     step_fix_multicast()
 
-    # ── LCM 生成 (无论是否跳过编译, Python 方案必须有 .py 模块) ──
     if not step_generate_lcm():
         print("[launch] ✗ LCM 生成失败，退出")
         sys.exit(1)
 
-    # ── 编译 ──
     if not args.no_build:
         if not step_ensure_built():
             print("[launch] ✗ 编译失败，退出")
             sys.exit(1)
 
-    # ── 启动仿真 ──
-    procs = []  # list of (name, Popen)
+    procs = []
     my_env = os.environ.copy()
     my_env.update({
         "INIT_X": f"{args.init_x:.4f}",
         "INIT_Y": f"{args.init_y:.4f}",
         "INIT_YAW": f"{args.init_yaw:.6f}",
     })
+
     step_launch_sim(args, procs, my_env)
 
-    # ── 启动业务节点（等仿真稳定后） ──
     if not args.no_tracker:
         print("[launch] 等待仿真就绪 (3s)...")
         time.sleep(3)
-        step_launch_tracker(args, procs, my_env)
+        step_launch_tracker(procs, my_env)
 
     print("\n[launch] ========== 全部启动完成 ==========")
     print(f"[launch] 日志目录: {LOG_DIR}/")
-    print("[launch] 按 Ctrl+C 停止所有进程")
+    print("[launch] 按 Ctrl+C 仅停止业务节点，仿真环境将保留")
 
-    # ── 等待退出 ──
     stop_event = threading.Event()
 
     def _on_signal(sig, frame):
-        print(f"\n[launch] 收到信号 {sig}，正在停止...")
+        print(f"\n[launch] 收到信号 {sig}，正在停止业务节点...")
         stop_event.set()
 
     signal.signal(signal.SIGINT, _on_signal)
@@ -499,18 +505,19 @@ def main():
         while not stop_event.is_set():
             stop_event.wait(timeout=1)
     finally:
-        print("[launch] 清理子进程...")
+        print("[launch] 清理业务节点...")
         for name, proc in procs:
-            # 跳过 tracker_term，保留打印终端窗口
             if name == "tracker_term":
                 print("[launch]   保留打印终端 (tracker_term)，不关闭")
+                continue
+            if name != "tracker":
                 continue
             try:
                 proc.terminate()
             except Exception:
                 pass
         for name, proc in procs:
-            if name == "tracker_term":
+            if name != "tracker":
                 continue
             try:
                 proc.wait(timeout=5)
@@ -520,8 +527,7 @@ def main():
                     proc.wait(timeout=3)
                 except Exception:
                     pass
-        kill_simulation()
-        print("[launch] 已停止")
+        print("[launch] 已停止业务节点，仿真环境保持运行")
 
 
 if __name__ == "__main__":
