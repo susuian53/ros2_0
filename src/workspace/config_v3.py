@@ -14,7 +14,7 @@ PATH_CSV = "/home/cyberdog_sim/src/workspace/track_path.csv"
 # ═══════════════════════════════════════════════════════
 # 跟踪参数
 # ═══════════════════════════════════════════════════════
-START_INDEX = 6500     # 起点路点索引 (由 susuian1.py 设置)
+START_INDEX = 5000     # 起点路点索引 (由 susuian1.py 设置)
 LOOKAHEAD       = 0.50      # 前视距离 (m)
 LOOKAHEAD_MIN   = 0.25      # 弯道近距前视
 ANGLE_THRESH    = 15.0      # 航向修正阈值 (°) — 放宽减少无意义旋转
@@ -60,7 +60,7 @@ GAIT_STAGES = [
     # ── 斜坡段 ──
     dict(name="slope_top", gait="slope",
          step_m=0.03, speed_ms=0.03,
-         start="TOP_L", end="FINISH"),
+         start="BR_TOP", end="FINISH"),
 
     # ── FINISH 跳跃 → START2 ──
     dict(name="jump_finish", gait="jump",

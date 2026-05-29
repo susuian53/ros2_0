@@ -122,14 +122,16 @@ class GaitLib:
             print("[GaitLibV2] WARNING: sim_time is static, falling back to real-time for init")
 
         print("[GaitLibV2] Standing up (MODE_STAND)...")
+        z_before_stand = self.z
         t0_sim = self.sim_time
         t0_real = time.time()
         while True:
             self._send(mode=MODE_STAND, gait_id=0, contact=0, step_h=0.0, pos_z=0.25)
             self._pump()
             with self._lock:
-                # 判定标准：高度达到 0.23m 或者 (仿真时间流逝 5s 或 现实时间流逝 10s)
-                if self.z > 0.23: break
+                dz = self.z - z_before_stand
+                # 判定标准：身体相对起始位置抬升 > 0.06m (真站立而非在斜坡/桥面等高位)
+                if dz > 0.06: break
                 if sim_time_working and (self.sim_time - t0_sim > 5.0): break
                 if not sim_time_working and (time.time() - t0_real > 10.0): break
             time.sleep(0.05)
@@ -285,6 +287,17 @@ class GaitLib:
         if distance <= 0 or speed <= 0: return
         dur_ms = max(500, int(distance/(speed*MPS_PER_SEC)*1000*STEP_MARGIN))
         self._step_run(vf=speed, dur_ms=dur_ms) # 假设 slope 模式已通过 gait_id 或外部配置生效
+    def slide_to_target(self, geo_angle, dg, speed=0.05, back_speed=0.0):
+        """斜面侧移: 根据目标方向角分解为前进/后退+侧移分量, 不动朝向.
+        geo_angle: 目标方向角(rad), dg: 到目标距离(m)
+        back_speed: 向后速度分量, 用于远离边缘"""
+        if dg <= 0.001 or speed <= 0: return
+        x, y, z, roll, pitch, yaw = self.get_position()
+        a_err = geo_angle - yaw
+        vf = speed * math.cos(a_err) - back_speed
+        vl = speed * math.sin(a_err)
+        dur_ms = max(150, int(dg/(speed*MPS_PER_SEC)*1000*STEP_MARGIN))
+        self._step_run(vf=vf, vl=vl, dur_ms=dur_ms)
     def step_shift(self, distance=0.03, speed=0.05):
         if abs(distance) < 0.005: return
         vl = speed if distance > 0 else -speed
@@ -341,14 +354,15 @@ class GaitLib:
         )
         subprocess.Popen(cmd, shell=True, stdout=subprocess.DEVNULL, stderr=subprocess.DEVNULL)
 
-    def enable_slope_comp(self, force_gain=100.0, lean_gain=0.8):
+    def enable_slope_comp(self, force_gain=100.0, lean_gain=0.8, body_height=0.08):
         self._slope_comp = True
         self._slope_force_gain = force_gain
         self._slope_lean_gain = lean_gain
         self._filt_roll = self.roll; self._filt_pitch = self.pitch
         self._filt_alpha = 0.4; self._slope_tick_cnt = 0
-        self._set_body_lean(0, 0, 0.08)
-        print(f"[GaitLibV2] Slope ON (force={force_gain} lean={lean_gain})")
+        self._slope_body_height = body_height
+        self._set_body_lean(0, 0, body_height)
+        print(f"[GaitLibV2] Slope ON (force={force_gain} lean={lean_gain} body_h={body_height:.2f})")
 
     def disable_slope_comp(self):
         self._slope_comp = False
@@ -369,4 +383,4 @@ class GaitLib:
         lr =  Kl * math.sin(self._filt_roll)
         lp =  Kl * math.sin(self._filt_pitch)
         self._apply_force(fx, fy, 0, 0.5)
-        self._set_body_lean(lr, lp, 0.08)
+        self._set_body_lean(lr, lp, self._slope_body_height)

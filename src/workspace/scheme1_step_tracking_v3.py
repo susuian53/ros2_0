@@ -217,6 +217,13 @@ def run():
     low_stuck_last_x = 0.0
     low_stuck_last_y = 0.0
 
+    # 斜面4段: 侧移→前进→侧移→后退, 全程不转弯(yaw≈90°)
+    slope_seg = 0               # 当前段 0-3
+    slope_seg_targets = ['TOP_L', 'TOP_LL', 'TOP_RR', 'FINISH']
+    slope_seg_modes   = ['side', 'forward', 'side', 'backward']
+    slope_last_x = 0.0
+    slope_last_y = 0.0
+
     gl = GaitLib()
     gl.init()
     if not gl.pose_valid: print("[ERROR] No pose"); return
@@ -298,7 +305,7 @@ def run():
             print(f"\n  ➜ [{stage['name']}] gait={stage['gait']}  wp={idx}")
             if stage['gait'] == 'slope':
                 gl._load_gecko_slope_gait()
-                gl.enable_slope_comp()
+                # 不用力控, 壁虎低姿态自带防滑
             last_stage = stage
 
         # ── 斜坡力控心跳 (非斜坡区自动跳过) ──
@@ -567,13 +574,97 @@ def run():
             print(f"  [DBG] suppress_turn=True idx={idx} sexta_phase={sexta_phase}")
 
         # ── 默认行为：按角度判断是否旋转（若被抑制则跳过转向） ──
-        if abs(a_err) > cfg.ANGLE_THRESH and not suppress_turn_until_2A:
-            # 单次旋转不超过 45°, 分多步完成防摔倒
-            turn_deg = max(-45, min(45, a_err))
-            rate = 0.35 if abs(a_err) > cfg.TURN_FAST_THRES else 0.25
-            if stage['gait'] == 'slope':
-                gl.step_turn_low(turn_deg, rate=rate)
+        if stage['gait'] == 'slope':
+            # ── 斜面4段: 侧移→前进→侧移→后退, 全程不转弯(yaw≈90°) ──
+            if slope_seg < len(slope_seg_targets):
+                tgt_name = slope_seg_targets[slope_seg]
+                tgt_idx = _idx(tgt_name)
+                if tgt_idx >= 0:
+                    nx, ny = path[tgt_idx][0], path[tgt_idx][1]
+                    dist_tgt = math.hypot(nx - x, ny - y)
+
+                    # 到达当前目标节点 → 进入下一段
+                    if dist_tgt < 0.30:
+                        print(f"  📍 到达 {tgt_name}, ", end='')
+                        slope_seg += 1
+                        if slope_seg < len(slope_seg_targets):
+                            print(f"段{slope_seg+1}/4 {slope_seg_modes[slope_seg]} → {slope_seg_targets[slope_seg]}")
+                        else:
+                            print(f"斜面4段完成!")
+                        continue
+
+                    mode = slope_seg_modes[slope_seg]
+                    step_m = stage['step_m']
+
+                    if mode == 'side':
+                        # 侧移: 朝向目标节点, yaw保持90°
+                        side_speed = 0.05
+                        target_dir = math.atan2(ny - y, nx - x)
+                        a_err = normalize_angle(target_dir - yaw)
+                        shift_dir = 1.0 if math.sin(a_err) > 0 else -1.0
+                        vl = shift_dir * side_speed
+
+                        # y漂移修正
+                        y_err = ny - y
+                        vf = 0.0
+                        if abs(y_err) > 0.02:
+                            vf = side_speed * 0.6 * (1.0 if y_err > 0 else -1.0)
+                        # 前滑检测
+                        if slope_last_x != 0 or slope_last_y != 0:
+                            dx_r = x - slope_last_x; dy_r = y - slope_last_y
+                            if dx_r * math.cos(yaw) + dy_r * math.sin(yaw) > 0.003:
+                                vf -= side_speed * 0.5
+
+                        yaw_err_90 = normalize_angle(math.radians(90) - yaw)
+                        vy = max(-0.2, min(0.2, yaw_err_90 * 2.0))
+                        step_d = min(dist_tgt, step_m)
+                        dur_ms = max(200, int(step_d/(side_speed*1.0)*1000*1.3))
+                        gl._step_run(vf=vf, vl=vl, vy=vy, dur_ms=dur_ms)
+                        slope_last_x, slope_last_y = x, y
+
+                    elif mode == 'forward':
+                        # 前进(壁虎低姿态): 检测x漂移, vl微调保持对准目标
+                        fwd_speed = 0.04
+                        step_d = min(dist_tgt, step_m)
+                        vf = fwd_speed
+                        vl = 0.0
+
+                        # x漂移修正: 偏离目标x则侧移补偿
+                        x_err = nx - x
+                        if abs(x_err) > 0.02:
+                            vl = fwd_speed * 0.6 * (1.0 if x_err > 0 else -1.0)
+
+                        # 前滑检测
+                        if slope_last_x != 0 or slope_last_y != 0:
+                            dx_r = x - slope_last_x; dy_r = y - slope_last_y
+                            if dx_r * math.cos(yaw) + dy_r * math.sin(yaw) > 0.003:
+                                vf -= fwd_speed * 0.5
+
+                        yaw_err_90 = normalize_angle(math.radians(90) - yaw)
+                        vy = max(-0.2, min(0.2, yaw_err_90 * 2.0))
+                        dur_ms = max(300, int(step_d/(fwd_speed*1.0)*1000*1.3))
+                        gl._step_run(vf=vf, vl=vl, vy=vy, dur_ms=dur_ms,
+                                     mode=62, gait_id=110, step_h=0.06, pos_z=0.10)
+                        slope_last_x, slope_last_y = x, y
+
+                    elif mode == 'backward':
+                        # 后退(壁虎低姿态): 对准目标倒退, yaw保持90°
+                        yaw_err_90 = normalize_angle(math.radians(90) - yaw)
+                        vy = max(-0.15, min(0.15, yaw_err_90 * 1.5))
+                        step_d = min(dist_tgt, step_m)
+                        dur_ms = max(300, int(step_d/(0.04*1.0)*1000*1.3))
+                        gl._step_run(vf=-0.04, vy=vy, dur_ms=dur_ms)
+                        slope_last_x, slope_last_y = x, y
             else:
+                # 斜面段全部完成, 使用壁虎前进过渡
+                gl.slope_step_forward(stage['step_m'], speed=stage['speed_ms'])
+        elif abs(a_err) > cfg.ANGLE_THRESH and not suppress_turn_until_2A:
+            # backward/high_forward: 直走不调朝向不侧移 (独木桥等场景必须直线前进)
+            if stage['gait'] in ('backward', 'high_forward'):
+                execute_gait(gl, stage, dg)
+            else:
+                turn_deg = max(-45, min(45, a_err))
+                rate = 0.35 if abs(a_err) > cfg.TURN_FAST_THRES else 0.25
                 gl.step_turn(turn_deg, rate=rate)
         elif suppress_turn_until_2A:
             # 被抑制时输出简短日志以便调试
