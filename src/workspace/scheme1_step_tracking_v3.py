@@ -242,6 +242,7 @@ def run():
     jump_stable_cnt = 0
     jump_drop_cnt = 0
     jump_phase2_start = 0
+    s1_back_yaw_ok = False      # S1_back 矫正朝向标志
 
     gl = GaitLib()
     gl.init()
@@ -343,8 +344,8 @@ def run():
         # ═══════════════════════════════════════════════════════════
         # 第六赛段: START2→A1→A2 → 逻辑函数U
         # ═══════════════════════════════════════════════════════════
-        in_sexta = (START2_i >= 0 and IDX_2 >= 0 and (START2_i <= idx <= IDX_2 or sexta_phase > 0))
-        if in_sexta and IDX_1 >= 0 and IDX_2 >= 0:
+        in_sexta = (jump_done and START2_i >= 0 and IDX_1 >= 0 and (idx >= START2_i or sexta_phase > 0))
+        if in_sexta and IDX_1 >= 0:
 
             # ── 阶段0: START2→A1，先定向再直行 (run) ──
             if sexta_phase == 0:
@@ -385,185 +386,134 @@ def run():
                     err = math.degrees(normalize_angle(target_angle - yaw))
                     dist = math.hypot(tx - x, ty - y)
                     err_x, err_y = abs(tx - x), abs(ty - y)
-                    # 到达: 距离和xy偏差都达标
                     if dist < 0.03 and err_x < 0.02 and err_y < 0.02:
                         gl.stop()
                         u_sub_phase = 1
-                        print(f"  ✅ 到达(0.19,14.67). 位置:({x:.3f},{y:.3f}), 左侧移0.1m.")
+                        print(f"  \u2705 到达(0.19,14.67). 位置:({x:.3f},{y:.3f}), 循环前进+右转找0\u00b0.")
                         continue
-                    # 靠近目标: 小步微调, 先转向再前进
                     if dist < 0.10:
                         if abs(err) > 5.0:
                             turn_deg = max(-30, min(30, err))
                             gl.step_turn(turn_deg, rate=0.20)
                             gl._pump(); time.sleep(0.02)
-                            print(f"  ↻ U-微调(0.19,14.67): err={err:+4.1f}° pos=({x:.3f},{y:.3f}) d={dist:.3f}")
+                            print(f"  \u21bb U-微调(0.19,14.67): err={err:+4.1f}\u00b0 pos=({x:.3f},{y:.3f}) d={dist:.3f}")
                             continue
                         step = min(0.03, dist + 0.01)
                         gl.step_forward(step, speed=0.08)
                         gl._pump()
-                        print(f"  → U-微进(0.19,14.67): pos=({x:.3f},{y:.3f}) d={dist:.3f}")
+                        print(f"  \u2192 U-微进(0.19,14.67): pos=({x:.3f},{y:.3f}) d={dist:.3f}")
                         continue
-                    # 远离目标: 正常转向+前进
                     if abs(err) > 5.0:
                         turn_deg = max(-45, min(45, err))
                         gl.step_turn(turn_deg, rate=0.25)
                         gl._pump(); time.sleep(0.02)
-                        print(f"  ↻ U-转向(0.19,14.67): err={err:+4.1f}° pos=({x:.3f},{y:.3f})")
+                        print(f"  \u21bb U-转向(0.19,14.67): err={err:+4.1f}\u00b0 pos=({x:.3f},{y:.3f})")
                         continue
                     gl.step_forward(0.05, speed=0.20)
                     gl._pump()
-                    print(f"  → U-前进→(0.19,14.67): pos=({x:.3f},{y:.3f}) dist={dist:.3f}m")
+                    print(f"  \u2192 U-前进\u2192(0.19,14.67): pos=({x:.3f},{y:.3f}) dist={dist:.3f}m")
                     continue
 
-                # 1b: 左侧移 0.10m (单次执行)
+                # 1b: 循环: 前进+右侧移, 直到yaw接近0\u00b0 (身体与球平行)
                 if u_sub_phase == 1:
-                    gl.step_shift(0.10, speed=0.06)
-                    gl._pump()
+                    err_to_zero = math.degrees(normalize_angle(0.0 - yaw))
+                    if abs(err_to_zero) > 8.0:
+                        # 前进 + 右侧移 (用侧移推球, 身体自然转正)
+                        gl._step_run(vf=0.04, vl=0.0, vy=-0.12, dur_ms=400)
+                        gl._pump()
+                        print(f"  \u21c9 U-前进+右侧移\u21920\u00b0: err={err_to_zero:+4.1f}\u00b0 yaw={math.degrees(yaw):.0f}\u00b0 pos=({x:.2f},{y:.2f})")
+                        continue
+                    gl.stop()
                     u_sub_phase = 2
-                    print(f"  ✅ U-左侧移0.1m完成. 位置:({x:.3f},{y:.3f}), 转向0°.")
+                    u_start_x, u_start_y = x, y
+                    print(f"  \u2705 yaw\u22480\u00b0, 身体平行于球. 凶猛侧移撞球1.5m.")
                     continue
 
-                # 1c: 转向到 yaw=0°
+                # 1c: 凶猛右侧移1.5m (TrotFast gait=10 撞球)
                 if u_sub_phase == 2:
-                    err_to_zero = math.degrees(normalize_angle(0.0 - yaw))
-                    if abs(err_to_zero) > 5.0:
-                        turn_deg = max(-45, min(45, err_to_zero))
-                        gl.step_turn(turn_deg, rate=0.25)
-                        print(f"  ↻ U-turn2zero: err={err_to_zero:+4.1f}° pos=({x:.3f},{y:.3f})")
-                        gl._pump(); time.sleep(0.02)
+                    moved = math.hypot(x - u_start_x, y - u_start_y)
+                    if moved < 1.5:
+                        gl._step_run(vf=0.0, vl=-0.55, vy=0.0, dur_ms=200, gait_id=10)
+                        gl._pump()
+                        print(f"  \u21c9 U-凶猛侧移撞球(TrotFast): moved={moved:.2f}m / 1.5m pos=({x:.2f},{y:.2f})")
                         continue
                     gl.stop()
                     u_sub_phase = 3
-                    print(f"  ✅ 转向完成 yaw≈0°. 前往(2.50,14.85),目标yaw≈10°.")
+                    print(f"  \u2705 侧移1.5m完成. 导航到(0.19,12.90).")
                     continue
 
-                # 1d: 前往 (2.50, 14.85), yaw≈10°
+                # 1d: 导航到 (0.19, 12.90), 转到0\u00b0
                 if u_sub_phase == 3:
-                    tx, ty = 2.50, 14.85
-                    target_yaw = math.radians(10)
+                    tx, ty = 0.19, 12.90
                     target_angle = math.atan2(ty - y, tx - x)
                     err = math.degrees(normalize_angle(target_angle - yaw))
                     dist = math.hypot(tx - x, ty - y)
                     if dist < 0.10:
-                        # 到位后微调yaw到10°
-                        err10 = math.degrees(normalize_angle(target_yaw - yaw))
-                        if abs(err10) > 3.0:
-                            turn_deg = max(-30, min(30, err10))
+                        err0 = math.degrees(normalize_angle(0.0 - yaw))
+                        if abs(err0) > 5.0:
+                            turn_deg = max(-30, min(30, err0))
                             gl.step_turn(turn_deg, rate=0.20)
                             gl._pump(); time.sleep(0.02)
-                            print(f"  ↻ U-调yaw→10°: err={err10:+3.1f}° pos=({x:.3f},{y:.3f})")
+                            print(f"  \u21bb U-调yaw\u21920\u00b0: err={err0:+3.1f}\u00b0")
                             continue
                         gl.stop()
                         u_sub_phase = 4
-                        u_wait_start = time.time()
-                        print(f"  ✅ 到达(2.50,14.85) yaw≈10°. 等待20s.")
+                        u_start_x, u_start_y = x, y
+                        print(f"  \u2705 到达(0.19,12.90) yaw\u22480\u00b0. 左侧移0.5m.")
                         continue
                     if abs(err) > 5.0:
                         turn_deg = max(-45, min(45, err))
                         gl.step_turn(turn_deg, rate=0.25)
                         gl._pump(); time.sleep(0.02)
-                        print(f"  ↻ U-转向(2.50,14.85): err={err:+4.1f}° pos=({x:.3f},{y:.3f})")
+                        print(f"  \u21bb U-导航(0.19,12.90): err={err:+4.1f}\u00b0 dist={dist:.2f}m")
                         continue
                     gl.step_forward(0.05, speed=0.20)
                     gl._pump()
-                    print(f"  → U-前往(2.50,14.85): pos=({x:.3f},{y:.3f}) dist={dist:.3f}m")
+                    print(f"  \u2192 U-前往(0.19,12.90): pos=({x:.2f},{y:.2f}) dist={dist:.2f}m")
                     continue
 
-                # 1e: 等待 20s
+                # 1e: 左侧移0.5m
                 if u_sub_phase == 4:
-                    elapsed = time.time() - u_wait_start
-                    if elapsed < 20.0:
+                    moved = math.hypot(x - u_start_x, y - u_start_y)
+                    if moved < 0.5:
+                        gl._step_run(vf=0.0, vl=0.20, vy=0.0, dur_ms=400)
                         gl._pump()
-                        if int(elapsed) != int(elapsed - 0.1):
-                            print(f"  ⏳ U-等待: {elapsed:.0f}s / 20s")
-                        time.sleep(0.5)
+                        print(f"  \u21c6 U-左侧移: moved={moved:.2f}m / 0.5m pos=({x:.2f},{y:.2f})")
                         continue
+                    gl.stop()
                     u_sub_phase = 5
-                    u_start_x, u_start_y = x, y
-                    print(f"  ✅ 等待20s完成. 右侧移到(2.50,13.50)，以y判断.")
+                    print(f"  \u2705 左侧移0.5m完成. 转身冲刺Trot\u2192(3.5,12.90).")
                     continue
 
-                # 1f: 右侧移到 (2.50, 13.50), 判断y
+                # 1f: Trot 冲刺到 (3.5, 12.90) (gait_id=3 Trot medium)
                 if u_sub_phase == 5:
-                    tx, ty = 2.50, 13.50
-                    err_y = abs(ty - y)
-                    if err_y < 0.03:
-                        gl.stop()
-                        u_sub_phase = 6
-                        u_start_x, u_start_y = x, y
-                        print(f"  ✅ 右移完成 y={y:.3f}. 后退寻路到(2.0,12.80).")
-                        continue
-                    gl.step_shift(-0.03, speed=0.06)
-                    gl._pump()
-                    print(f"  ⇉ U-右移→(2.50,13.50): y_err={err_y:.3f}m pos=({x:.3f},{y:.3f})")
-                    continue
-
-                # 1g: 后退+旋转寻路到 (2.0, 12.80)
-                if u_sub_phase == 6:
-                    tx, ty = 2.0, 12.80
-                    back_angle = normalize_angle(math.atan2(ty - y, tx - x) + math.pi)
-                    err = math.degrees(normalize_angle(back_angle - yaw))
+                    tx, ty = 3.5, 12.90
+                    target_angle = math.atan2(ty - y, tx - x)
+                    err = math.degrees(normalize_angle(target_angle - yaw))
                     dist = math.hypot(tx - x, ty - y)
                     if dist < 0.10:
                         gl.stop()
-                        u_sub_phase = 7
-                        u_start_x, u_start_y = x, y
-                        print(f"  ✅ 到达(2.0,12.80). 右侧移到(3.50,12.80).")
+                        u_sub_phase = 6
+                        print(f"  \u2705 到达(3.5,12.90). 趴下.")
                         continue
                     if abs(err) > 5.0:
-                        turn_deg = max(-45, min(45, err))
-                        gl.step_turn(turn_deg, rate=0.25)
+                        turn_deg = max(-30, min(30, err))
+                        gl.step_turn(turn_deg, rate=0.30)
                         gl._pump(); time.sleep(0.02)
-                        print(f"  ↻ U-后退寻路(2.0,12.80): err={err:+4.1f}° pos=({x:.3f},{y:.3f})")
+                        print(f"  \u21bb U-Trot冲刺: err={err:+4.1f}\u00b0 dist={dist:.2f}m")
                         continue
-                    gl.step_backward(0.05, speed=0.10)
+                    gl._step_run(vf=0.30, vl=0.0, vy=0.0, dur_ms=200, gait_id=3)
                     gl._pump()
-                    print(f"  ← U-后退→(2.0,12.80): pos=({x:.3f},{y:.3f}) dist={dist:.3f}m")
+                    print(f"  \u2192 U-Trot冲刺\u2192(3.5,12.90): pos=({x:.2f},{y:.2f}) dist={dist:.2f}m")
                     continue
 
-                # 1h: 右侧移到 (3.50, 12.80)
-                if u_sub_phase == 7:
-                    tx, ty = 3.50, 12.80
-                    err_y = abs(ty - y)
-                    if err_y < 0.03:
-                        gl.stop()
-                        u_sub_phase = 8
-                        print(f"  ✅ 右移完成 y={y:.3f}. 位置:({x:.3f},{y:.3f}), 左侧移0.2m.")
-                        continue
-                    gl.step_shift(-0.03, speed=0.06)
+                # 1g: 趴下 (MODE_PRONE=7)
+                if u_sub_phase == 6:
+                    gl._send(mode=7, gait_id=0, contact=0)
                     gl._pump()
-                    print(f"  ⇉ U-右移→(3.50,12.80): y_err={err_y:.3f}m pos=({x:.3f},{y:.3f})")
-                    continue
-
-                # 1i: 左侧移 0.20m (单次执行)
-                if u_sub_phase == 8:
-                    gl.step_shift(0.20, speed=0.06)
-                    gl._pump()
-                    u_sub_phase = 9
-                    print(f"  ✅ U-左侧移0.2m完成. 位置:({x:.3f},{y:.3f}), 转向0°.")
-                    continue
-
-                # 1j: 转向到 yaw=0°
-                if u_sub_phase == 9:
-                    err_to_zero = math.degrees(normalize_angle(0.0 - yaw))
-                    if abs(err_to_zero) > 5.0:
-                        turn_deg = max(-45, min(45, err_to_zero))
-                        gl.step_turn(turn_deg, rate=0.25)
-                        print(f"  ↻ U-turn2zero: err={err_to_zero:+4.1f}° pos=({x:.3f},{y:.3f})")
-                        gl._pump(); time.sleep(0.02)
-                        continue
-                    gl.stop()
-                    u_sub_phase = 10
-                    print(f"  ✅ 转向完成 yaw≈0°. 位置:({x:.3f},{y:.3f})")
-                    continue
-
-                # 1k: 停止
-                if u_sub_phase == 10:
-                    gl.stop()
-                    gl._pump()
-                    print("\n  🎯 U函数完成。")
-                    print(f"     位置: ({x:.2f}, {y:.2f}) yaw={math.degrees(yaw):.0f}°")
+                    time.sleep(3)
+                    print("\n  \U0001f3af U函数完成。")
+                    print(f"     位置: ({x:.2f}, {y:.2f}) yaw={math.degrees(yaw):.0f}\u00b0")
                     running = False
                     continue
 
@@ -744,8 +694,19 @@ def run():
                 jump_last_z = z
                 jump_stable_cnt = 0
                 gl.enable_slope_comp(force_gain=120.0, lean_gain=1.0, body_height=0.08)
+                # ── 跳跃前矫正yaw到180° (面朝下坡方向) ──
+                target_yaw = math.radians(180)
+                yaw_err = math.degrees(normalize_angle(target_yaw - yaw))
+                if abs(yaw_err) > 10.0:
+                    turn_deg = max(-30, min(30, yaw_err))
+                    gl.step_turn(turn_deg, rate=0.25)
+                    gl._pump()
+                    time.sleep(0.02)
+                    print(f'  [FINISH] 矫正yaw: err={yaw_err:+5.1f}° cur={math.degrees(yaw):.0f}° → 目标180°')
+                    continue
+                gl.stop()
                 jump_phase = 1
-                print(f'  [FINISH] 力控已开启 z0={z:.3f}, 准备跳跃...')
+                print(f'  [FINISH] yaw={math.degrees(yaw):.0f}° 已矫正, 力控已开启 z0={z:.3f}, 准备跳跃...')
                 continue
 
             elif jump_phase == 1:
@@ -818,8 +779,13 @@ def run():
                     jump_done = True
                 continue
         elif abs(a_err) > cfg.ANGLE_THRESH and not suppress_turn_until_2A:
+            # S1_back: 先矫正朝向再后退 (背对ROCK, 面向180°)
+            if stage['name'] == 'S1_back' and not s1_back_yaw_ok:
+                turn_deg = max(-45, min(45, a_err))
+                gl.step_turn(turn_deg, rate=0.25)
+                print(f"  \u21bb S1_back\u77eb\u6b63: err={a_err:+4.1f}\u00b0 yaw={math.degrees(yaw):.0f}\u00b0 \u2192 \u76ee\u6807{math.degrees(normalize_angle(target)):.0f}\u00b0")
             # backward/high_forward: 直走不调朝向不侧移 (独木桥等场景必须直线前进)
-            if stage['gait'] in ('backward', 'high_forward'):
+            elif stage['gait'] in ('backward', 'high_forward'):
                 execute_gait(gl, stage, dg)
             else:
                 turn_deg = max(-45, min(45, a_err))
@@ -829,6 +795,8 @@ def run():
             # 被抑制时输出简短日志以便调试
             print("  (turn suppressed until 2A)")
         else:
+            if stage["name"] == 'S1_back':
+                s1_back_yaw_ok = True
             execute_gait(gl, stage, dg)
 
         # ── 卡住 ──
