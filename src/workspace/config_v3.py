@@ -14,7 +14,7 @@ PATH_CSV = "/home/cyberdog_sim/src/workspace/track_path.csv"
 # ═══════════════════════════════════════════════════════
 # 跟踪参数
 # ═══════════════════════════════════════════════════════
-START_INDEX = 5000     # 起点路点索引 (由 susuian1.py 设置)
+START_INDEX = 6250     # 起点路点索引 (由 susuian1.py 设置)
 LOOKAHEAD       = 0.50      # 前视距离 (m)
 LOOKAHEAD_MIN   = 0.25      # 弯道近距前视
 ANGLE_THRESH    = 15.0      # 航向修正阈值 (°) — 放宽减少无意义旋转
@@ -65,10 +65,10 @@ GAIT_STAGES = [
     # ── FINISH 跳跃 → START2 ──
     dict(name="jump_finish", gait="jump",
          step_m=0.08, speed_ms=0.20,
-         start="FINISH", end="START2"),
+         start="FINISH", end="A1"),
 
     # ── 跳跃后正常寻迹 (START2 → A1 → A2) ──
-    dict(name="post_jump", gait="high_forward",
+    dict(name="post_jump", gait="forward",
          step_m=0.09, speed_ms=0.30,
          start="START2", end="A1"),
 

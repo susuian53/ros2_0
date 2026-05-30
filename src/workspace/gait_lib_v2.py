@@ -305,6 +305,84 @@ class GaitLib:
     def jump(self):
         self._send(mode=22, gait_id=0, contact=0, step_h=0.0, pos_z=0.0)
         time.sleep(0.5); self._pump()
+
+    def force_jump(self, x_acc=10.0, z_acc=18.0, contact=15, duration=0.8):
+        """力控跳跃: 通过 acc_des 施加身体推力, 落地后自动收腿站稳.
+        x_acc: 前进加速度 (m/s²), z_acc: 上跳加速度 (m/s²)
+        contact: 足端触地掩码 (15=四足)
+        """
+        self._pump()
+        with self._lock:
+            t0_sim = self.sim_time
+        t0_real = time.time()
+        dur_s = duration
+
+        while True:
+            self._life = (self._life + 1) % 127
+            m = self._msg
+            m.mode = 22       # kForceJump
+            m.gait_id = 0
+            m.contact = contact
+            m.life_count = self._life
+            m.duration = 0
+            m.vel_des[0] = 0.0; m.vel_des[1] = 0.0; m.vel_des[2] = 0.0
+            m.step_height[0] = 0.0; m.step_height[1] = 0.0
+            m.pos_des[2] = 0.0
+            m.rpy_des[0] = 0.0; m.rpy_des[1] = 0.0; m.rpy_des[2] = 0.0
+            m.acc_des[3] = x_acc
+            m.acc_des[4] = 0.0
+            m.acc_des[5] = z_acc
+            m.acc_des[0] = 0.0; m.acc_des[1] = 0.0; m.acc_des[2] = 0.0
+            m.value = 0
+            self.lc_tx.publish("robot_control_cmd", m.encode())
+            self._pump()
+            with self._lock:
+                if self.sim_time - t0_sim >= dur_s:
+                    break
+                if time.time() - t0_real >= dur_s * 2.0:
+                    break
+            time.sleep(0.02)
+
+        # 落回站立
+        for _ in range(10):
+            self._send(mode=12, gait_id=0, contact=0, step_h=0.0, pos_z=0.25)
+            self._pump()
+            time.sleep(0.1)
+
+    def jump_down(self):
+        """下跳台阶: mode=16 kJump3d + gait_id=9 kJumpDownStair.
+        FSM自动处理: 预备→起跳→腾空→落地→恢复, 约1.5-2s完成."""
+        print("[GaitLibV2] JumpDownStair triggered (mode=16 gait=9)")
+        self._pump()
+        with self._lock:
+            t0_sim = self.sim_time
+        t0_real = time.time()
+
+        # 发送 jump3d 命令, 持续触发直到 FSM 接手
+        while True:
+            self._send(mode=16, gait_id=9, contact=15, step_h=0.0, pos_z=0.15)
+            self._pump()
+            with self._lock:
+                if self.sim_time - t0_sim >= 0.5:
+                    break
+                if time.time() - t0_real >= 1.0:
+                    break
+            time.sleep(0.02)
+
+        # 等待跳跃完成 (FSM 内部处理落地恢复)
+        print("[GaitLibV2] Waiting for jump to complete...")
+        time.sleep(1.0)
+        for _ in range(20):
+            self._pump()
+            time.sleep(0.05)
+
+        # 站立恢复
+        for _ in range(10):
+            self._send(mode=12, gait_id=0, contact=0, step_h=0.0, pos_z=0.25)
+            self._pump()
+            time.sleep(0.1)
+        print("[GaitLibV2] JumpDownStair complete")
+
     def announce(self, text):
         try:
             subprocess.Popen(["espeak-ng", "-v", "zh", text],

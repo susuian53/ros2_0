@@ -228,8 +228,20 @@ def run():
     slope_turning = False       # 拐弯调角阶段
     slope_turn_target_yaw = 0.0 # 拐弯目标yaw
     slope_final_turn = False    # 斜面完成后的最终回正调角
+    slope_anti_g_vf = 0.0       # 动态重力对抗分量 (积累)
     slope_last_x = 0.0
     slope_last_y = 0.0
+
+    # 跳跃下坡状态机 (FINISH → START2)
+    # Phase: 0=转到-90°, 1=走到Y=13.00, 2=跳跃, 3=调整到(3.20,12.90), 4=走到X≈2.50, 5=完成
+    jump_phase = 0
+    jump_turned = False
+    jump_done = False
+    jump_start_z = 0.0
+    jump_last_z = 0.0
+    jump_stable_cnt = 0
+    jump_drop_cnt = 0
+    jump_phase2_start = 0
 
     gl = GaitLib()
     gl.init()
@@ -583,6 +595,14 @@ def run():
         # ── 默认行为：按角度判断是否旋转（若被抑制则跳过转向） ──
         if stage['gait'] == 'slope':
             # ── 斜面4段: 全部侧移, 拐弯渐进调角, XY偏移大时停下修正 ──
+            # 根据当前位置自动跳到对应段位
+            for seg_i in range(len(slope_seg_targets)):
+                t_idx = _idx(slope_seg_targets[seg_i])
+                if t_idx >= 0 and idx > t_idx and slope_seg <= seg_i:
+                    slope_seg = seg_i + 1
+                    slope_turning = False
+                    slope_last_x, slope_last_y = 0.0, 0.0
+                    print(f'  ⏭ 跳过段{seg_i+1}/4({slope_seg_targets[seg_i]}) → 当前段{slope_seg+1}/4')
             if slope_seg < len(slope_seg_targets):
                 tgt_name = slope_seg_targets[slope_seg]
                 tgt_idx = _idx(tgt_name)
@@ -600,18 +620,24 @@ def run():
                             slope_seg += 1
                             slope_last_x, slope_last_y = x, y
                             if slope_seg < len(slope_seg_targets):
-                                print(f"  ✓ 拐弯完成 → 段{slope_seg+1}/4 → {slope_seg_targets[slope_seg]}")
+                                step += 1
+                                print(f"  [{step:5d}] ({x:6.2f},{y:6.2f}) y={math.degrees(yaw):5.0f}°  "
+                                      f"wp={idx:5d} ✓ 拐弯完成 → 段{slope_seg+1}/4 → {slope_seg_targets[slope_seg]}")
                             else:
-                                print(f"  ✓ 斜面4段完成!")
+                                step += 1
+                                print(f"  [{step:5d}] ({x:6.2f},{y:6.2f}) y={math.degrees(yaw):5.0f}°  "
+                                      f"wp={idx:5d} ✓ 斜面4段完成!")
                             continue
                         else:
                             turn_deg = max(-SLOPE_TURN_MAX_DEG, min(SLOPE_TURN_MAX_DEG, math.degrees(yaw_err)))
                             gl.step_turn(turn_deg, rate=SLOPE_TURN_RATE)
+                            step += 1
+                            print(f"  [{step:5d}] ({x:6.2f},{y:6.2f}) y={math.degrees(yaw):5.0f}°  "
+                                  f"wp={idx:5d} ↻ 调角 {turn_deg:+5.1f}° [slope_turn]")
                             continue
 
                     # ── 到达路点, 开始拐弯 ──
                     if dist_tgt < 0.30:
-                        print(f"  📍 到达 {tgt_name}, ", end='')
                         if slope_seg + 1 < len(slope_seg_targets):
                             next_name = slope_seg_targets[slope_seg + 1]
                             next_idx = _idx(next_name)
@@ -621,10 +647,14 @@ def run():
                                 # vl方向=yaw+90°, 要让vl指向目标 → yaw=目标方向-90°
                                 slope_turn_target_yaw = normalize_angle(next_dir - math.pi / 2)
                                 slope_turning = True
-                                print(f"拐弯调角中... (目标yaw={math.degrees(slope_turn_target_yaw):.0f}°)")
+                                step += 1
+                                print(f"  [{step:5d}] ({x:6.2f},{y:6.2f}) y={math.degrees(yaw):5.0f}°  "
+                                      f"wp={idx:5d} 📍 到达 {tgt_name} 拐弯→目标yaw={math.degrees(slope_turn_target_yaw):.0f}°")
                         else:
                             slope_seg += 1
-                            print(f"斜面完成!")
+                            step += 1
+                            print(f"  [{step:5d}] ({x:6.2f},{y:6.2f}) y={math.degrees(yaw):5.0f}°  "
+                                  f"wp={idx:5d} 📍 斜面完成!")
                         slope_last_x, slope_last_y = x, y
                         continue
 
@@ -642,14 +672,16 @@ def run():
                         if v_len > 0.001:
                             cross_track = abs(vx * cy - vy * cx) / v_len
                             if cross_track > XY_OFFSET_MAX:
-                                # 停下修正: 纯侧移向路径线靠拢
-                                # CP>0表示在路径线左侧, 需向右修正(vl<0)
+                                # 停下侧移修正, 但保持重力对抗分量
                                 sign = -1.0 if (vx * cy - vy * cx) > 0 else 1.0
                                 vl = sign * SLOPE_SIDE_SPEED * 0.8
                                 yaw_err = normalize_angle(desired_yaw - yaw)
-                                vy_cmd = max(-0.15, min(0.15, yaw_err * 1.5))
-                                gl._step_run(vf=0.0, vl=vl, vy=vy_cmd, dur_ms=300)
+                                vy_cmd = max(-0.30, min(0.30, yaw_err * 2.5))
+                                gl._step_run(vf=slope_anti_g_vf, vl=vl, vy=vy_cmd, dur_ms=300)
                                 slope_last_x, slope_last_y = x, y
+                                step += 1
+                                print(f"  [{step:5d}] ({x:6.2f},{y:6.2f}) y={math.degrees(yaw):5.0f}°  "
+                                      f"wp={idx:5d} ⚡ XY修正 cross={cross_track:.3f}m [slope]")
                                 continue
 
                     # ── 侧移 + Y连续修正: 同时进行, 不分开 ──
@@ -675,12 +707,18 @@ def run():
                     if x_err * shift_dir > 0 and abs(x_err) > 0.02:
                         vl = -shift_dir * SLOPE_SIDE_SPEED * 0.6
 
-                    # 后滑检测 (重力对抗)
+                    # 动态重力对抗: 检测实际后滑, 积累对抗分量
                     if slope_last_x != 0 or slope_last_y != 0:
                         dx_r = x - slope_last_x; dy_r = y - slope_last_y
                         fwd_slide = dx_r * math.cos(yaw) + dy_r * math.sin(yaw)
-                        if fwd_slide < -0.002:
-                            vf += SLOPE_SIDE_SPEED * 0.8
+                        # 后滑 → 加大对抗分量; 前移正常 → 缓慢衰减
+                        if fwd_slide < -0.001:
+                            slope_anti_g_vf += abs(fwd_slide) * 15.0
+                        else:
+                            slope_anti_g_vf *= 0.92
+                        slope_anti_g_vf = max(0.0, min(0.25, slope_anti_g_vf))
+                    # 将动态对抗分量叠加到vf
+                    vf += slope_anti_g_vf
 
                     desired_yaw = normalize_angle(target_dir - math.pi / 2)
                     yaw_err = normalize_angle(desired_yaw - yaw)
@@ -690,20 +728,95 @@ def run():
                     gl._step_run(vf=vf, vl=vl, vy=vy_cmd, dur_ms=dur_ms)
                     slope_last_x, slope_last_y = x, y
             else:
-                # 斜面段全部完成, 渐进回转yaw使vl对准后续路径方向
-                if not slope_final_turn:
-                    # 取前方20个路点的方向作为后续目标方向
-                    ahead = min(idx + 20, len(path) - 1)
-                    next_dir = math.atan2(path[ahead][1] - y, path[ahead][0] - x)
-                    slope_turn_target_yaw = normalize_angle(next_dir - math.pi / 2)
-                    slope_final_turn = True
-                    print(f"  斜面完成, 回转yaw→{math.degrees(slope_turn_target_yaw):.0f}°")
-                yaw_err = normalize_angle(slope_turn_target_yaw - yaw)
-                if abs(yaw_err) < math.radians(3):
-                    gl.slope_step_forward(stage['step_m'], speed=stage['speed_ms'])
+                # 斜面段全部完成, 直接跳到 FINISH 触发 jump_finish 阶段
+                finish_idx = _idx('FINISH')
+                if finish_idx >= 0:
+                    idx = finish_idx
+                    print(f"  斜面段完成, 跳至 FINISH(wp={finish_idx}), 进入下斜面")
                 else:
-                    turn_deg = max(-SLOPE_TURN_MAX_DEG, min(SLOPE_TURN_MAX_DEG, math.degrees(yaw_err)))
-                    gl.step_turn(turn_deg, rate=SLOPE_TURN_RATE)
+                    idx += 1
+                continue
+        elif stage['gait'] == 'jump' and not jump_done:
+            # ── FINISH: 直接跳跃 (kJump3d/JumpDownStair) → 落地恢复 → A1 ──
+
+            if jump_phase == 0:
+                jump_start_z = z
+                jump_last_z = z
+                jump_stable_cnt = 0
+                gl.enable_slope_comp(force_gain=120.0, lean_gain=1.0, body_height=0.08)
+                jump_phase = 1
+                print(f'  [FINISH] 力控已开启 z0={z:.3f}, 准备跳跃...')
+                continue
+
+            elif jump_phase == 1:
+                # ── 直接跳跃: mode=16 gait_id=9 kJumpDownStair ──
+                gl.disable_slope_comp()
+                print(f'  🚀 kJumpDownStair 触发!')
+                gl.jump_down()
+                jump_phase = 2
+                jump_phase2_start = step
+                jump_last_z = z
+                jump_stable_cnt = 0
+                gl.enable_slope_comp(force_gain=100.0, lean_gain=0.8, body_height=0.10)
+                print(f'  ✓ 跳跃完成 z={z:.3f}, 落地恢复中...')
+                continue
+
+            elif jump_phase == 2:
+                # ── 落地恢复: 每步0.15s, 给身体真实恢复时间 ──
+                gl._slope_tick()
+                gl._send(mode=12, gait_id=0, contact=0, step_h=0.0, pos_z=0.25)
+                gl._pump()
+                time.sleep(0.15)
+                step += 1
+                dz = abs(z - jump_last_z)
+                if dz < 0.005:
+                    jump_stable_cnt += 1
+                else:
+                    jump_stable_cnt = max(0, jump_stable_cnt - 1)
+                jump_last_z = z
+                if jump_stable_cnt > 15 and step - jump_phase2_start > 20:
+                    jump_phase = 3
+                    # 重新进入 locomotion 模式, 先站稳
+                    for _ in range(20):
+                        gl._send(mode=11, gait_id=0, vf=0, vl=0, vy=0, pos_z=0.25)
+                        gl._pump()
+                        time.sleep(0.05)
+                    # 重开力控 (斜面防滑)
+                    gl.enable_slope_comp(force_gain=80.0, lean_gain=0.6, body_height=0.12)
+                    print(f'  ✓ 恢复完成 z={z:.3f} stable={jump_stable_cnt} steps={step}, 进入Locomotion+力控, 前往A1')
+                    continue
+                print(f'  [{step:5d}] ({x:6.2f},{y:6.2f}) z={z:.3f} y={math.degrees(yaw):5.0f}°  '
+                      f'wp={idx:5d} ↣ 恢复 stable={jump_stable_cnt}')
+                continue
+
+            elif jump_phase == 3:
+                # ── 导航到 A1 (力控防滑) ──
+                a1_idx = _idx('A1')
+                if a1_idx >= 0:
+                    sx, sy = path[a1_idx][0], path[a1_idx][1]
+                    dist_to_a1 = math.hypot(sx - x, sy - y)
+                    if dist_to_a1 < 0.50:
+                        jump_done = True
+                        idx = nearest_index(path, x, y, a1_idx)
+                        print(f'  ✓ 到达A1 d={dist_to_a1:.2f}m, 下斜面完成')
+                        continue
+                    gl._slope_tick()
+                    tdir = math.atan2(sy - y, sx - x)
+                    a_err = normalize_angle(tdir - yaw)
+                    if abs(a_err) > math.radians(20):
+                        turn_deg = max(-20, min(20, math.degrees(a_err)))
+                        gl.step_turn(turn_deg, rate=0.35)
+                    elif abs(a_err) > math.radians(8):
+                        vy_cmd = max(-0.2, min(0.2, math.degrees(a_err) * 0.02))
+                        gl._step_run(vf=0.04, vl=0.0, vy=vy_cmd, dur_ms=400)
+                    else:
+                        gl._step_run(vf=0.05, vl=0.0, vy=0.0, dur_ms=400)
+                    step += 1
+                    print(f'  [{step:5d}] ({x:6.2f},{y:6.2f}) z={z:.3f} y={math.degrees(yaw):5.0f}°  '
+                          f'wp={idx:5d} → A1 d={dist_to_a1:.2f}m a_err={math.degrees(a_err):+.0f}°')
+                else:
+                    jump_done = True
+                continue
         elif abs(a_err) > cfg.ANGLE_THRESH and not suppress_turn_until_2A:
             # backward/high_forward: 直走不调朝向不侧移 (独木桥等场景必须直线前进)
             if stage['gait'] in ('backward', 'high_forward'):
