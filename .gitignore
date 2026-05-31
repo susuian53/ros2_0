@@ -1,23 +1,7 @@
-# Build
 build/
 install/
 log/
 logs/
-
-# Python
 __pycache__/
 *.pyc
-*.pyo
-
-# IDE
 .vscode/
-
-# OS
-.DS_Store
-Thumbs.db
-
-# Generated
-src/workspace/track_path_preview.png
-
-# ROS2
-*.pyc
